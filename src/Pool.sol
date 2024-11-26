@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-//dx.fun//base.fun powered by dextools and dxsale.
+
+import {Clones} from "./libraries/Clones.sol";
+import {ReentrancyGuard} from "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 
 /**
  * @dev Contract module that helps prevent reentrant calls to a function.
@@ -308,8 +310,6 @@ interface IFunToken {
     ) external;
     function initiateDex() external;
 }
-
-import "./lib/Clones.sol";
 
 contract FunPool is Ownable, ReentrancyGuard {
     address public constant DEAD = 0x000000000000000000000000000000000000dEaD;
