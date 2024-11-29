@@ -16,68 +16,55 @@ import {IFunEventTracker} from "./interfaces/IFunEventTracker.sol";
 interface UniswapRouter02 {
     function factory() external pure returns (address);
     function WETH() external pure returns (address);
-    
+
     function addLiquidity(
         address tokenA,
         address tokenB,
-        uint amountADesired,
-        uint amountBDesired,
-        uint amountAMin,
-        uint amountBMin,
+        uint256 amountADesired,
+        uint256 amountBDesired,
+        uint256 amountAMin,
+        uint256 amountBMin,
         address to,
-        uint deadline
-    ) external returns (uint amountA, uint amountB, uint liquidity);
+        uint256 deadline
+    ) external returns (uint256 amountA, uint256 amountB, uint256 liquidity);
 
     function addLiquidityETH(
         address token,
-        uint amountTokenDesired,
-        uint amountTokenMin,
-        uint amountETHMin,
+        uint256 amountTokenDesired,
+        uint256 amountTokenMin,
+        uint256 amountETHMin,
         address to,
-        uint deadline
-    )
+        uint256 deadline
+    ) external payable returns (uint256 amountToken, uint256 amountETH, uint256 liquidity);
+
+    function swapExactETHForTokens(uint256 amountOutMin, address[] calldata path, address to, uint256 deadline)
         external
         payable
-        returns (uint amountToken, uint amountETH, uint liquidity);
+        returns (uint256[] memory amounts);
 
-    function swapExactETHForTokens(
-        uint amountOutMin,
-        address[] calldata path,
-        address to,
-        uint deadline
-    ) external payable returns (uint[] memory amounts);
+    function getAmountsOut(uint256 amountIn, address[] calldata path)
+        external
+        view
+        returns (uint256[] memory amounts);
 
-    function getAmountsOut(
-        uint amountIn,
-        address[] calldata path
-    ) external view returns (uint[] memory amounts);
-
-    function getAmountsIn(
-        uint amountOut,
-        address[] calldata path
-    ) external view returns (uint[] memory amounts);
+    function getAmountsIn(uint256 amountOut, address[] calldata path)
+        external
+        view
+        returns (uint256[] memory amounts);
 }
+
 interface UniswapFactory {
-    event PairCreated(
-        address indexed token0,
-        address indexed token1,
-        address pair,
-        uint
-    );
+    event PairCreated(address indexed token0, address indexed token1, address pair, uint256);
 
-    function getPair(
-        address tokenA,
-        address tokenB
-    ) external view returns (address pair);
+    function getPair(address tokenA, address tokenB) external view returns (address pair);
 
-    function createPair(
-        address tokenA,
-        address tokenB
-    ) external returns (address pair);
+    function createPair(address tokenA, address tokenB) external returns (address pair);
 }
+
 interface LPToken {
     function sync() external;
 }
+
 interface ILpLockDeployerInterface {
     function createLPLocker(
         address _lockingToken,
@@ -104,6 +91,11 @@ contract FunPool is Ownable, ReentrancyGuard {
     uint256 public constant HUNDRED = 100;
     uint256 public constant BASIS_POINTS = 10000;
 
+    enum CurveType {
+        LINEAR,
+        EXPONENTIAL
+    }
+
     struct FunTokenPoolData {
         uint256 reserveTokens;
         uint256 reserveETH;
@@ -114,7 +106,9 @@ contract FunPool is Ownable, ReentrancyGuard {
         bool tradeActive;
         bool lpBurn;
         bool royalemitted;
+        CurveType curveType;
     }
+
     struct FunTokenPool {
         address creator;
         address token;
@@ -138,13 +132,10 @@ contract FunPool is Ownable, ReentrancyGuard {
     address public stableAddress;
     address public lpLockDeployer;
     address public eventTracker;
+    uint16 public baseMultiplier = 110;
     uint16 public feePer;
 
-    event LiquidityAdded(
-        address indexed provider,
-        uint tokenAmount,
-        uint ethAmount
-    );
+    event LiquidityAdded(address indexed provider, uint256 tokenAmount, uint256 ethAmount);
     event sold(
         address indexed user,
         uint256 amountIn,
@@ -190,7 +181,7 @@ contract FunPool is Ownable, ReentrancyGuard {
         address _stableAddress,
         address _eventTracker,
         uint16 _feePer
-    ) Ownable(msg.sender) payable {
+    ) payable Ownable(msg.sender) {
         implementation = _implementation;
         feeContract = _feeContract;
         lpLockDeployer = _lpLockDeployer;
@@ -211,13 +202,7 @@ contract FunPool is Ownable, ReentrancyGuard {
         require(allowedDeployers[msg.sender], "not deployer");
 
         address funToken = Clones.clone(implementation);
-        IFunToken(funToken).initialize(
-            _totalSupply,
-            _name_symbol[0],
-            _name_symbol[1],
-            address(this),
-            msg.sender
-        );
+        IFunToken(funToken).initialize(_totalSupply, _name_symbol[0], _name_symbol[1], address(this), msg.sender);
 
         // add tokens to the tokens user list
         userFunTokens[_creator].push(funToken);
@@ -253,33 +238,39 @@ contract FunPool is Ownable, ReentrancyGuard {
     }
 
     // Calculate amount of output tokens or ETH to give out
-    function getAmountOutTokens(
-        address funToken,
-        uint amountIn
-    ) public view returns (uint amountOut) {
+    function getAmountOutTokens(address funToken, uint256 amountIn) public view returns (uint256 amountOut) {
         require(amountIn > 0, "Invalid input amount");
         FunTokenPool storage token = tokenPools[funToken];
-        require(
-            token.pool.reserveTokens > 0 && token.pool.reserveETH > 0,
-            "Invalid reserves"
-        );
-        uint numerator = amountIn * token.pool.reserveTokens;
-        uint denominator = (token.pool.reserveETH) + amountIn;
-        amountOut = numerator / denominator;
+        require(token.pool.reserveTokens > 0 && token.pool.reserveETH > 0, "Invalid reserves");
+
+        if (token.pool.curveType == CurveType.LINEAR) {
+            uint256 numerator = amountIn * token.pool.reserveTokens;
+            uint256 denominator = token.pool.reserveETH + amountIn;
+            amountOut = numerator / denominator;
+        } else {
+            // Exponential curve
+            uint256 currentSupply = token.pool.reserveTokens;
+            uint256 basePrice = token.pool.reserveETH / currentSupply;
+            uint256 totalCost = 0;
+            amountOut = 0;
+            uint256 currentPrice = basePrice;
+
+            while (totalCost < amountIn && amountOut < currentSupply) {
+                uint256 nextPrice = (currentPrice * baseMultiplier) / HUNDRED;
+                if (totalCost + nextPrice > amountIn) break;
+                totalCost += nextPrice;
+                currentPrice = nextPrice;
+                amountOut++;
+            }
+        }
     }
 
-    function getAmountOutETH(
-        address funToken,
-        uint amountIn
-    ) public view returns (uint amountOut) {
+    function getAmountOutETH(address funToken, uint256 amountIn) public view returns (uint256 amountOut) {
         require(amountIn > 0, "Invalid input amount");
         FunTokenPool storage token = tokenPools[funToken];
-        require(
-            token.pool.reserveTokens > 0 && token.pool.reserveETH > 0,
-            "Invalid reserves"
-        );
-        uint numerator = amountIn * token.pool.reserveETH;
-        uint denominator = (token.pool.reserveTokens) + amountIn;
+        require(token.pool.reserveTokens > 0 && token.pool.reserveETH > 0, "Invalid reserves");
+        uint256 numerator = amountIn * token.pool.reserveETH;
+        uint256 denominator = (token.pool.reserveTokens) + amountIn;
         amountOut = numerator / denominator;
     }
 
@@ -292,72 +283,60 @@ contract FunPool is Ownable, ReentrancyGuard {
         return UniswapRouter02(tokenPools[funToken].router).WETH();
     }
 
-    function getAmountsMinToken(
-        address funToken,
-        address _tokenAddress,
-        uint256 _ethIN
-    ) public view returns (uint256) {
+    function getAmountsMinToken(address funToken, address _tokenAddress, uint256 _ethIN)
+        public
+        view
+        returns (uint256)
+    {
         // generate the pair path of token -> weth
         uint256[] memory amountMinArr;
         address[] memory path = new address[](2);
         path[0] = getWrapAddr(funToken);
         path[1] = address(_tokenAddress);
-        amountMinArr = UniswapRouter02(tokenPools[funToken].router)
-            .getAmountsOut(_ethIN, path);
+        amountMinArr = UniswapRouter02(tokenPools[funToken].router).getAmountsOut(_ethIN, path);
         return uint256(amountMinArr[1]);
     }
 
     function getCurrentCap(address funToken) public view returns (uint256) {
         FunTokenPool storage token = tokenPools[funToken];
-        return
-            (getAmountsMinToken(
-                funToken,
-                stableAddress,
-                token.pool.reserveETH
-            ) * IERC20(funToken).totalSupply()) / token.pool.reserveTokens;
+        return (getAmountsMinToken(funToken, stableAddress, token.pool.reserveETH) * IERC20(funToken).totalSupply())
+            / token.pool.reserveTokens;
     }
 
-    function getFuntokenPool(address funToken) public view returns(FunTokenPool memory) {
-      return tokenPools[funToken];
+    function getFuntokenPool(address funToken) public view returns (FunTokenPool memory) {
+        return tokenPools[funToken];
     }
 
-    function getFuntokenPools(address[] memory funTokens) public view returns(FunTokenPool[] memory) {
-      uint length = funTokens.length;
-      FunTokenPool[] memory pools = new FunTokenPool[](length);
-      for( uint i=0 ;i < length;  ) {
-        pools[i] = tokenPools[funTokens[i]];
-        unchecked {
-          i++;
+    function getFuntokenPools(address[] memory funTokens) public view returns (FunTokenPool[] memory) {
+        uint256 length = funTokens.length;
+        FunTokenPool[] memory pools = new FunTokenPool[](length);
+        for (uint256 i = 0; i < length;) {
+            pools[i] = tokenPools[funTokens[i]];
+            unchecked {
+                i++;
+            }
         }
-      }
-      return pools;
+        return pools;
     }
 
-     function getUserFuntokens(address user) public view returns(address[] memory) {
-      return userFunTokens[user];
+    function getUserFuntokens(address user) public view returns (address[] memory) {
+        return userFunTokens[user];
     }
 
-    function sellTokens(
-        address funToken,
-        uint256 tokenAmount,
-        uint256 minEth,
-        address _affiliate
-    ) public nonReentrant returns (bool, bool) {
+    function sellTokens(address funToken, uint256 tokenAmount, uint256 minEth, address _affiliate)
+        public
+        nonReentrant
+        returns (bool, bool)
+    {
         FunTokenPool storage token = tokenPools[funToken];
         require(token.pool.tradeActive, "Trading not active");
 
         uint256 tokenToSell = tokenAmount;
         uint256 ethAmount = getAmountOutETH(funToken, tokenToSell);
         uint256 ethAmountFee = (ethAmount * feePer) / BASIS_POINTS;
-        uint256 ethAmountOwnerFee = (ethAmountFee *
-            (IFunDeployer(token.deployer).getOwnerPer())) /
-            BASIS_POINTS;
-        uint256 affiliateFee = (ethAmountFee *
-            (
-                IFunDeployer(token.deployer).getAffiliatePer(
-                    _affiliate
-                )
-            )) / BASIS_POINTS;
+        uint256 ethAmountOwnerFee = (ethAmountFee * (IFunDeployer(token.deployer).getOwnerPer())) / BASIS_POINTS;
+        uint256 affiliateFee =
+            (ethAmountFee * (IFunDeployer(token.deployer).getAffiliatePer(_affiliate))) / BASIS_POINTS;
         require(ethAmount > 0 && ethAmount >= minEth, "Slippage too high");
 
         token.pool.reserveTokens += tokenAmount;
@@ -365,18 +344,16 @@ contract FunPool is Ownable, ReentrancyGuard {
         token.pool.volume += ethAmount;
 
         IERC20(funToken).transferFrom(msg.sender, address(this), tokenToSell);
-        (bool success, ) = feeContract.call{
-            value: ethAmountFee - ethAmountOwnerFee - affiliateFee
-        }(""); // paying plat fee
+        (bool success,) = feeContract.call{value: ethAmountFee - ethAmountOwnerFee - affiliateFee}(""); // paying plat fee
         require(success, "fee ETH transfer failed");
 
-        (success, ) = _affiliate.call{value: affiliateFee}(""); // paying affiliate fee which is same amount as plat fee %
+        (success,) = _affiliate.call{value: affiliateFee}(""); // paying affiliate fee which is same amount as plat fee %
         require(success, "aff ETH transfer failed");
 
-        (success, ) = payable(owner()).call{value: ethAmountOwnerFee}(""); // paying owner fee per tx
+        (success,) = payable(owner()).call{value: ethAmountOwnerFee}(""); // paying owner fee per tx
         require(success, "ownr ETH transfer failed");
 
-        (success, ) = msg.sender.call{value: ethAmount - ethAmountFee}("");
+        (success,) = msg.sender.call{value: ethAmount - ethAmountFee}("");
         require(success, "seller ETH transfer failed");
 
         emit sold(
@@ -398,21 +375,12 @@ contract FunPool is Ownable, ReentrancyGuard {
             "sell",
             token.pool.volume
         );
-        IFunEventTracker(eventTracker).sellEvent(
-            msg.sender,
-            funToken,
-            tokenToSell,
-            ethAmount
-        );
+        IFunEventTracker(eventTracker).sellEvent(msg.sender, funToken, tokenToSell, ethAmount);
 
         return (true, true);
     }
 
-    function buyTokens(
-        address funToken,
-        uint256 minTokens,
-        address _affiliate
-    ) public payable nonReentrant {
+    function buyTokens(address funToken, uint256 minTokens, address _affiliate) public payable nonReentrant {
         require(msg.value > 0, "Invalid buy value");
         FunTokenPool storage token = tokenPools[funToken];
         require(token.pool.tradeActive, "Trading not active");
@@ -420,35 +388,24 @@ contract FunPool is Ownable, ReentrancyGuard {
         {
             uint256 ethAmount = msg.value;
             uint256 ethAmountFee = (ethAmount * feePer) / BASIS_POINTS;
-            uint256 ethAmountOwnerFee = (ethAmountFee *
-                (IFunDeployer(token.deployer).getOwnerPer())) /
-                BASIS_POINTS;
-            uint256 affiliateFee = (ethAmountFee *
-                (
-                    IFunDeployer(token.deployer).getAffiliatePer(
-                        _affiliate
-                    )
-                )) / BASIS_POINTS;
+            uint256 ethAmountOwnerFee = (ethAmountFee * (IFunDeployer(token.deployer).getOwnerPer())) / BASIS_POINTS;
+            uint256 affiliateFee =
+                (ethAmountFee * (IFunDeployer(token.deployer).getAffiliatePer(_affiliate))) / BASIS_POINTS;
 
-            uint256 tokenAmount = getAmountOutTokens(
-                funToken,
-                ethAmount - ethAmountFee
-            );
+            uint256 tokenAmount = getAmountOutTokens(funToken, ethAmount - ethAmountFee);
             require(tokenAmount >= minTokens, "Slippage too high");
 
             token.pool.reserveETH += (ethAmount - ethAmountFee);
             token.pool.reserveTokens -= tokenAmount;
             token.pool.volume += ethAmount;
 
-            (bool success, ) = feeContract.call{
-                value: ethAmountFee - ethAmountOwnerFee - affiliateFee
-            }(""); // paying plat fee
+            (bool success,) = feeContract.call{value: ethAmountFee - ethAmountOwnerFee - affiliateFee}(""); // paying plat fee
             require(success, "fee ETH transfer failed");
 
-            (success, ) = _affiliate.call{value: affiliateFee}(""); // paying affiliate fee which is same amount as plat fee %
+            (success,) = _affiliate.call{value: affiliateFee}(""); // paying affiliate fee which is same amount as plat fee %
             require(success, "fee ETH transfer failed");
 
-            (success, ) = payable(owner()).call{value: ethAmountOwnerFee}(""); // paying owner fee per tx
+            (success,) = payable(owner()).call{value: ethAmountOwnerFee}(""); // paying owner fee per tx
             require(success, "fee ETH transfer failed");
 
             IERC20(funToken).transfer(msg.sender, tokenAmount);
@@ -471,23 +428,14 @@ contract FunPool is Ownable, ReentrancyGuard {
                 "buy",
                 token.pool.volume
             );
-            IFunEventTracker(eventTracker).buyEvent(
-                msg.sender,
-                funToken,
-                msg.value,
-                tokenAmount
-            );
+            IFunEventTracker(eventTracker).buyEvent(msg.sender, funToken, msg.value, tokenAmount);
         }
 
-        uint currentMarketCap = getCurrentCap(funToken);
-        uint listThresholdCap = token.pool.listThreshold *
-            10 ** IERC20Metadata(stableAddress).decimals();
+        uint256 currentMarketCap = getCurrentCap(funToken);
+        uint256 listThresholdCap = token.pool.listThreshold * 10 ** IERC20Metadata(stableAddress).decimals();
 
         // using liquidity value inside contract to check when to add liquidity to DEX
-        if (
-            currentMarketCap >= (listThresholdCap / 2) &&
-            !token.pool.royalemitted
-        ) {
+        if (currentMarketCap >= (listThresholdCap / 2) && !token.pool.royalemitted) {
             IFunDeployer(token.deployer).emitRoyal(
                 funToken,
                 funToken,
@@ -508,21 +456,14 @@ contract FunPool is Ownable, ReentrancyGuard {
             if (token.pool.nativePer > 0) {
                 _addLiquidityETH(
                     funToken,
-                    (IERC20(funToken).balanceOf(address(this)) *
-                        token.pool.nativePer) / HUNDRED,
+                    (IERC20(funToken).balanceOf(address(this)) * token.pool.nativePer) / HUNDRED,
                     (token.pool.reserveETH * token.pool.nativePer) / HUNDRED,
                     token.pool.lpBurn
                 );
-                token.pool.reserveETH -=
-                    (token.pool.reserveETH * token.pool.nativePer) /
-                    HUNDRED;
+                token.pool.reserveETH -= (token.pool.reserveETH * token.pool.nativePer) / HUNDRED;
             }
             if (token.pool.nativePer < HUNDRED) {
-                _swapEthToBase(
-                    funToken,
-                    token.baseToken,
-                    token.pool.reserveETH
-                );
+                _swapEthToBase(funToken, token.baseToken, token.pool.reserveETH);
                 _addLiquidity(
                     funToken,
                     IERC20(funToken).balanceOf(address(this)),
@@ -536,20 +477,14 @@ contract FunPool is Ownable, ReentrancyGuard {
     function changeNativePer(address funToken, uint8 _newNativePer) public {
         require(_isUserFunToken(funToken), "Unauthorized");
         FunTokenPool storage token = tokenPools[funToken];
-        require(
-            token.baseToken != getWrapAddr(funToken),
-            "no custom base selected"
-        );
+        require(token.baseToken != getWrapAddr(funToken), "no custom base selected");
         require(_newNativePer >= 0 && _newNativePer <= 100, "invalid per");
         token.pool.nativePer = _newNativePer;
     }
 
-    function _addLiquidityETH(
-        address funToken,
-        uint256 amountTokenDesired,
-        uint256 nativeForDex,
-        bool lpBurn
-    ) internal {
+    function _addLiquidityETH(address funToken, uint256 amountTokenDesired, uint256 nativeForDex, bool lpBurn)
+        internal
+    {
         uint256 amountETH = nativeForDex;
         uint256 amountETHMin = (amountETH * 90) / HUNDRED;
         uint256 amountTokenToAddLiq = amountTokenDesired;
@@ -566,13 +501,8 @@ contract FunPool is Ownable, ReentrancyGuard {
         LP_WBNB_exp_balance = IERC20(wrapperAddress).balanceOf(storedLPAddress);
         LP_token_balance = IERC20(funToken).balanceOf(storedLPAddress);
 
-        if (
-            storedLPAddress != address(0x0) &&
-            (LP_WBNB_exp_balance > 0 && LP_token_balance <= 0)
-        ) {
-            tokenToSend =
-                (amountTokenToAddLiq * LP_WBNB_exp_balance) /
-                amountETH;
+        if (storedLPAddress != address(0x0) && (LP_WBNB_exp_balance > 0 && LP_token_balance <= 0)) {
+            tokenToSend = (amountTokenToAddLiq * LP_WBNB_exp_balance) / amountETH;
 
             IERC20(funToken).transfer(storedLPAddress, tokenToSend);
 
@@ -582,20 +512,11 @@ contract FunPool is Ownable, ReentrancyGuard {
         _approve(funToken, false);
 
         if (lpBurn) {
-            UniswapRouter02(token.router).addLiquidityETH{
-                value: amountETH - LP_WBNB_exp_balance
-            }(
-                funToken,
-                amountTokenToAddLiq - tokenToSend,
-                amountTokenMin,
-                amountETHMin,
-                DEAD,
-                block.timestamp + (300)
+            UniswapRouter02(token.router).addLiquidityETH{value: amountETH - LP_WBNB_exp_balance}(
+                funToken, amountTokenToAddLiq - tokenToSend, amountTokenMin, amountETHMin, DEAD, block.timestamp + (300)
             );
         } else {
-            UniswapRouter02(token.router).addLiquidityETH{
-                value: amountETH - LP_WBNB_exp_balance
-            }(
+            UniswapRouter02(token.router).addLiquidityETH{value: amountETH - LP_WBNB_exp_balance}(
                 funToken,
                 amountTokenToAddLiq - tokenToSend,
                 amountTokenMin,
@@ -615,13 +536,9 @@ contract FunPool is Ownable, ReentrancyGuard {
                 );
             */
 
-           /// TMP implementation for LP FEES
+            /// TMP implementation for LP FEES
 
-           IERC20(storedLPAddress).transfer(
-                feeContract,
-                IERC20(storedLPAddress).balanceOf(address(this))
-            );
-
+            IERC20(storedLPAddress).transfer(feeContract, IERC20(storedLPAddress).balanceOf(address(this)));
         }
         IFunEventTracker(eventTracker).listEvent(
             msg.sender,
@@ -643,12 +560,7 @@ contract FunPool is Ownable, ReentrancyGuard {
         );
     }
 
-    function _addLiquidity(
-        address funToken,
-        uint256 amountTokenDesired,
-        uint256 baseForDex,
-        bool lpBurn
-    ) internal {
+    function _addLiquidity(address funToken, uint256 amountTokenDesired, uint256 baseForDex, bool lpBurn) internal {
         uint256 amountBase = baseForDex;
         uint256 amountBaseMin = (amountBase * 90) / HUNDRED;
         uint256 amountTokenToAddLiq = amountTokenDesired;
@@ -662,18 +574,11 @@ contract FunPool is Ownable, ReentrancyGuard {
         token.storedLPAddress = _getpair(funToken, funToken, token.baseToken);
         address storedLPAddress = token.storedLPAddress;
 
-        LP_WBNB_exp_balance = IERC20(token.baseToken).balanceOf(
-            storedLPAddress
-        );
+        LP_WBNB_exp_balance = IERC20(token.baseToken).balanceOf(storedLPAddress);
         LP_token_balance = IERC20(funToken).balanceOf(storedLPAddress);
 
-        if (
-            storedLPAddress != address(0x0) &&
-            (LP_WBNB_exp_balance > 0 && LP_token_balance <= 0)
-        ) {
-            tokenToSend =
-                (amountTokenToAddLiq * LP_WBNB_exp_balance) /
-                amountBase;
+        if (storedLPAddress != address(0x0) && (LP_WBNB_exp_balance > 0 && LP_token_balance <= 0)) {
+            tokenToSend = (amountTokenToAddLiq * LP_WBNB_exp_balance) / amountBase;
 
             IERC20(funToken).transfer(storedLPAddress, tokenToSend);
 
@@ -718,10 +623,7 @@ contract FunPool is Ownable, ReentrancyGuard {
 
             /// TMP implementation for LP FEES
 
-            IERC20(storedLPAddress).transfer(
-                feeContract,
-                IERC20(storedLPAddress).balanceOf(address(this))
-            );
+            IERC20(storedLPAddress).transfer(feeContract, IERC20(storedLPAddress).balanceOf(address(this)));
         }
         IFunEventTracker(eventTracker).listEvent(
             msg.sender,
@@ -743,34 +645,22 @@ contract FunPool is Ownable, ReentrancyGuard {
         );
     }
 
-    function _swapEthToBase(
-        address funToken,
-        address _baseAddress,
-        uint256 _ethIN
-    ) internal returns (uint256) {
+    function _swapEthToBase(address funToken, address _baseAddress, uint256 _ethIN) internal returns (uint256) {
         _approve(funToken, true);
         // generate the pair path of token -> weth
         uint256[] memory amountMinArr;
         address[] memory path = new address[](2);
         path[0] = getWrapAddr(funToken);
         path[1] = _baseAddress;
-        uint256 minBase = (getAmountsMinToken(funToken, _baseAddress, _ethIN) *
-            90) / HUNDRED;
+        uint256 minBase = (getAmountsMinToken(funToken, _baseAddress, _ethIN) * 90) / HUNDRED;
 
-        amountMinArr = UniswapRouter02(tokenPools[funToken].router)
-            .swapExactETHForTokens{value: _ethIN}(
-            minBase,
-            path,
-            address(this),
-            block.timestamp + 300
+        amountMinArr = UniswapRouter02(tokenPools[funToken].router).swapExactETHForTokens{value: _ethIN}(
+            minBase, path, address(this), block.timestamp + 300
         );
         return amountMinArr[1];
     }
 
-    function _approve(
-        address funToken,
-        bool isBaseToken
-    ) internal returns (bool) {
+    function _approve(address funToken, bool isBaseToken) internal returns (bool) {
         FunTokenPool storage token = tokenPools[funToken];
         IERC20 token_ = IERC20(funToken);
         if (isBaseToken) {
@@ -783,10 +673,7 @@ contract FunPool is Ownable, ReentrancyGuard {
         return true;
     }
 
-    function _approveLock(
-        address _lp,
-        address _lockDeployer
-    ) internal returns (bool) {
+    function _approveLock(address _lp, address _lockDeployer) internal returns (bool) {
         IERC20 lp_ = IERC20(_lp);
         if (lp_.allowance(address(this), _lockDeployer) == 0) {
             lp_.approve(_lockDeployer, type(uint256).max);
@@ -794,11 +681,7 @@ contract FunPool is Ownable, ReentrancyGuard {
         return true;
     }
 
-    function _getpair(
-        address funToken,
-        address _token1,
-        address _token2
-    ) internal returns (address) {
+    function _getpair(address funToken, address _token1, address _token2) internal returns (address) {
         address router = tokenPools[funToken].router;
         address factory = UniswapRouter02(router).factory();
         address pair = UniswapFactory(factory).getPair(_token1, _token2);
@@ -810,7 +693,7 @@ contract FunPool is Ownable, ReentrancyGuard {
     }
 
     function _isUserFunToken(address funToken) internal view returns (bool) {
-        for (uint i = 0; i < userFunTokens[msg.sender].length; ) {
+        for (uint256 i = 0; i < userFunTokens[msg.sender].length;) {
             if (funToken == userFunTokens[msg.sender][i]) {
                 return true;
             }
@@ -852,5 +735,9 @@ contract FunPool is Ownable, ReentrancyGuard {
 
     function updateteamFeeper(uint16 _newFeePer) public onlyOwner {
         feePer = _newFeePer;
+    }
+
+    function updateBaseMultiplier(uint16 _newBaseMultiplier) public onlyOwner {
+        baseMultiplier = _newBaseMultiplier;
     }
 }

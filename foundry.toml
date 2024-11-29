@@ -8,4 +8,5 @@ via_ir = true
 
 remappings = [
   '@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/',
+  '@uniswap-v3/contracts/=lib/v3-core/contracts/'
 ]
