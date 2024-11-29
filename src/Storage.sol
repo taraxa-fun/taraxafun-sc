@@ -67,7 +67,6 @@ contract FunStorage is Ownable {
         ] = funCount;
         ownerToFunCount[_funOwner]++;
         funCount++;
-        // return true;
     }
 
     function updateData(

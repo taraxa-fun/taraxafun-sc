@@ -16,6 +16,9 @@ interface IFunStorageInterface {
     function getFunContractOwner(
         address _funContract
     ) external view returns (address);
+    function getFunContractIndex(
+        address _funContract
+    ) external view returns (uint256);
     function updateData(
         address _funOwner,
         uint256 _ownerFunNumber,

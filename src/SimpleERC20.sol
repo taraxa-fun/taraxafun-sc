@@ -1,9 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-// Fun Simple ERC20 Token --> visit https://www.base.fun/ for full experience
-// Powered by DX --> https://www.dx.app/
-
 interface IERC20 {
     function totalSupply() external view returns (uint256);
     function balanceOf(address account) external view returns (uint256);
@@ -34,7 +31,6 @@ contract SimpleERC20 is IERC20 {
     string public name;
     string public symbol;
     uint8 public constant decimals = 18;
-    uint8 public constant version = 2;
 
     address public initialFrom;
     address public deployerFrom;

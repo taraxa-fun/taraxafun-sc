@@ -10,12 +10,13 @@ import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IER
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
 import {Clones} from "./libraries/Clones.sol";
+import {IFunDeployer} from "./interfaces/IFunDeployer.sol";
+import {IFunEventTracker} from "./interfaces/IFunEventTracker.sol";
 
 interface UniswapRouter02 {
     function factory() external pure returns (address);
-
     function WETH() external pure returns (address);
-    // function WBNB() external pure returns(address);
+    
     function addLiquidity(
         address tokenA,
         address tokenB,
@@ -86,57 +87,7 @@ interface ILpLockDeployerInterface {
         address _funOwner
     ) external payable returns (address);
 }
-interface IFunDeployerInterface {
-    function getAffiliatePer(
-        address _affiliateAddrs
-    ) external view returns (uint256);
-    function getOwnerPer() external view returns (uint256);
-    function emitRoyal(
-        address funContract,
-        address tokenAddress,
-        address router,
-        address baseAddress,
-        uint256 liquidityAmount,
-        uint256 tokenAmount,
-        uint256 _time,
-        uint256 totalVolume
-    ) external;
-}
-interface IFunEventTracker {
-    function buyEvent(
-        address _caller,
-        address _funContract,
-        uint256 _buyAmount,
-        uint256 _tokenRecieved
-    ) external;
-    function sellEvent(
-        address _caller,
-        address _funContract,
-        uint256 _sellAmount,
-        uint256 _nativeRecieved
-    ) external;
-    function createFunEvent(
-        address creator,
-        address funContract,
-        address tokenAddress,
-        string memory name,
-        string memory symbol,
-        string memory data,
-        uint256 totalSupply,
-        uint256 initialReserve,
-        uint256 timestamp
-    ) external;
-    function listEvent(
-        address user,
-        address tokenAddress,
-        address router,
-        uint256 liquidityAmount,
-        uint256 tokenAmount,
-        uint256 _time,
-        uint256 totalVolume
-    ) external;
-    function callerValidate(address _newFunContract) external;
-}
+
 interface IFunToken {
     function initialize(
         uint256 initialSupply,
@@ -399,11 +350,11 @@ contract FunPool is Ownable, ReentrancyGuard {
         uint256 ethAmount = getAmountOutETH(funToken, tokenToSell);
         uint256 ethAmountFee = (ethAmount * feePer) / BASIS_POINTS;
         uint256 ethAmountOwnerFee = (ethAmountFee *
-            (IFunDeployerInterface(token.deployer).getOwnerPer())) /
+            (IFunDeployer(token.deployer).getOwnerPer())) /
             BASIS_POINTS;
         uint256 affiliateFee = (ethAmountFee *
             (
-                IFunDeployerInterface(token.deployer).getAffiliatePer(
+                IFunDeployer(token.deployer).getAffiliatePer(
                     _affiliate
                 )
             )) / BASIS_POINTS;
@@ -470,11 +421,11 @@ contract FunPool is Ownable, ReentrancyGuard {
             uint256 ethAmount = msg.value;
             uint256 ethAmountFee = (ethAmount * feePer) / BASIS_POINTS;
             uint256 ethAmountOwnerFee = (ethAmountFee *
-                (IFunDeployerInterface(token.deployer).getOwnerPer())) /
+                (IFunDeployer(token.deployer).getOwnerPer())) /
                 BASIS_POINTS;
             uint256 affiliateFee = (ethAmountFee *
                 (
-                    IFunDeployerInterface(token.deployer).getAffiliatePer(
+                    IFunDeployer(token.deployer).getAffiliatePer(
                         _affiliate
                     )
                 )) / BASIS_POINTS;
@@ -537,7 +488,7 @@ contract FunPool is Ownable, ReentrancyGuard {
             currentMarketCap >= (listThresholdCap / 2) &&
             !token.pool.royalemitted
         ) {
-            IFunDeployerInterface(token.deployer).emitRoyal(
+            IFunDeployer(token.deployer).emitRoyal(
                 funToken,
                 funToken,
                 token.router,
@@ -652,6 +603,7 @@ contract FunPool is Ownable, ReentrancyGuard {
                 address(this),
                 block.timestamp + (300)
             );
+            /*
             _approveLock(storedLPAddress, lpLockDeployer);
             token.lockerAddress = ILpLockDeployerInterface(lpLockDeployer)
                 .createLPLocker(
@@ -661,6 +613,15 @@ contract FunPool is Ownable, ReentrancyGuard {
                     IERC20(storedLPAddress).balanceOf(address(this)),
                     token.creator
                 );
+            */
+
+           /// TMP implementation for LP FEES
+
+           IERC20(storedLPAddress).transfer(
+                feeContract,
+                IERC20(storedLPAddress).balanceOf(address(this))
+            );
+
         }
         IFunEventTracker(eventTracker).listEvent(
             msg.sender,
@@ -743,6 +704,7 @@ contract FunPool is Ownable, ReentrancyGuard {
                 address(this),
                 block.timestamp + (300)
             );
+            /*
             _approveLock(storedLPAddress, lpLockDeployer);
             token.lockerAddress = ILpLockDeployerInterface(lpLockDeployer)
                 .createLPLocker(
@@ -752,6 +714,14 @@ contract FunPool is Ownable, ReentrancyGuard {
                     IERC20(storedLPAddress).balanceOf(address(this)),
                     owner()
                 );
+                */
+
+            /// TMP implementation for LP FEES
+
+            IERC20(storedLPAddress).transfer(
+                feeContract,
+                IERC20(storedLPAddress).balanceOf(address(this))
+            );
         }
         IFunEventTracker(eventTracker).listEvent(
             msg.sender,

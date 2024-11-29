@@ -2,13 +2,7 @@
 pragma solidity ^0.8.20;
 
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
-
-
-interface funRegistryInterface {
-    function getFunContractIndex(
-        address _funContract
-    ) external returns (uint256);
-}
+import {IFunStorageInterface} from "./interfaces/IFunStorageInterface.sol";
 
 contract FunEventTracker is Ownable {
     address public funRegistry;
@@ -76,7 +70,7 @@ contract FunEventTracker is Ownable {
     ) public {
         require(funContractDeployer[msg.sender], "invalid fun contract");
         uint256 funIndex;
-        funIndex = funRegistryInterface(funRegistry).getFunContractIndex(
+        funIndex = IFunStorageInterface(funRegistry).getFunContractIndex(
             _funContract
         );
         emit buyCall(
@@ -107,7 +101,7 @@ contract FunEventTracker is Ownable {
     ) public {
         require(funContractDeployer[msg.sender], "invalid fun contract");
         uint256 funIndex;
-        funIndex = funRegistryInterface(funRegistry).getFunContractIndex(
+        funIndex = IFunStorageInterface(funRegistry).getFunContractIndex(
             _funContract
         );
         emit sellCall(
@@ -141,9 +135,9 @@ contract FunEventTracker is Ownable {
         uint256 initialReserve,
         uint256 timestamp
     ) public {
-        require(funContractDeployer[msg.sender], "invalid deployer");
+        require(funContractDeployer[msg.sender], "not deployer");
         funContractCreatedByDeployer[funContract] = msg.sender;
-        funContractIndex[funContract] = funRegistryInterface(funRegistry)
+        funContractIndex[funContract] = IFunStorageInterface(funRegistry)
             .getFunContractIndex(funContract);
         emit funCreated(
             creator,
@@ -167,7 +161,7 @@ contract FunEventTracker is Ownable {
         uint256 _time,
         uint256 totalVolume
     ) public {
-        require(funContractDeployer[msg.sender], "invalid deployer");
+        require(funContractDeployer[msg.sender], "not deployer");
         emit listed(
             user,
             tokenAddress,
