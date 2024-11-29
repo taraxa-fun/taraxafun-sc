@@ -17,4 +17,9 @@ interface IFunPool {
         uint256 minTokens,
         address _affiliate
     ) external payable;
+
+    enum CurveType {
+        LINEAR,
+        EXPONENTIAL
+    }
 }

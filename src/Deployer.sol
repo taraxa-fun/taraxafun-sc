@@ -43,9 +43,11 @@ contract FunDeployer is Ownable {
     uint256 public affiliatePer = 1000; // base of 10000 -> 1000 equals 10%
     uint256 public supplyValue = 1000000000 ether;
     uint256 public initialReserveEth = 1 ether;
+    uint256 public curveFactor = 0.2 ether;
     uint256 public routerCount;
     uint256 public baseCount;
     bool public supplyLock = true;
+    bool public curveFactorLock = true;
     bool public lpBurn = true;
     mapping(address => bool) public routerValid;
     mapping(address => bool) public routerAdded;
@@ -76,7 +78,9 @@ contract FunDeployer is Ownable {
         address _baseToken,
         address _router,
         bool _antiSnipe,
-        uint256 _amountAntiSnipe
+        uint256 _amountAntiSnipe,
+        uint256 _curveFactor,
+        IFunPool.CurveType _curveType
     ) public payable {
         require(routerValid[_router], "invalid router");
         require(baseValid[_baseToken], "invalid base token");
@@ -86,6 +90,13 @@ contract FunDeployer is Ownable {
 
         if (_antiSnipe) {
             require(_amountAntiSnipe > 0, "invalid antisnipe value");
+        }
+
+        if (_curveType == IFunPool.CurveType.EXPONENTIAL) {
+            require(_curveFactor > 0, "invalid factor");
+            if (curveFactorLock){
+                require(_curveFactor == curveFactor, "invalid curve factor");
+            }
         }
 
         require(
@@ -286,6 +297,15 @@ contract FunDeployer is Ownable {
     function updateteamFeeper(uint256 _newFeePer) public onlyOwner {
         teamFeePer = _newFeePer;
     }
+
+    function updateCurveFactor(uint256 _newFactor) public onlyOwner {
+        curveFactor = _newFactor;
+    }
+
+    function stateChangeCurveFactorLock(bool _state) public onlyOwner {
+        curveFactorLock = _state;
+    }
+
     function emitRoyal(
         address funContract,
         address tokenAddress,

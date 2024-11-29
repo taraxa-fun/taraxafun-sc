@@ -102,6 +102,7 @@ contract FunPool is Ownable, ReentrancyGuard {
         uint256 volume;
         uint256 listThreshold;
         uint256 initialReserveEth;
+        uint256 factor;
         uint8 nativePer;
         bool tradeActive;
         bool lpBurn;
@@ -132,7 +133,6 @@ contract FunPool is Ownable, ReentrancyGuard {
     address public stableAddress;
     address public lpLockDeployer;
     address public eventTracker;
-    uint16 public baseMultiplier = 110;
     uint16 public feePer;
 
     event LiquidityAdded(address indexed provider, uint256 tokenAmount, uint256 ethAmount);
@@ -197,7 +197,9 @@ contract FunPool is Ownable, ReentrancyGuard {
         address _baseToken,
         address _router,
         uint256[2] memory listThreshold_initReserveEth,
-        bool lpBurn
+        bool lpBurn,
+        uint256 _curveFactor,
+        CurveType _curveType
     ) public payable returns (address) {
         require(allowedDeployers[msg.sender], "not deployer");
 
@@ -227,6 +229,8 @@ contract FunPool is Ownable, ReentrancyGuard {
         pool.pool.reserveETH += (listThreshold_initReserveEth[1] + msg.value);
         pool.pool.listThreshold = listThreshold_initReserveEth[0];
         pool.pool.initialReserveEth = listThreshold_initReserveEth[1];
+        pool.pool.factor = _curveFactor;
+        pool.pool.curveType = _curveType;
 
         // add the fun data for the fun token
         tokenPools[funToken] = pool;
@@ -245,23 +249,10 @@ contract FunPool is Ownable, ReentrancyGuard {
 
         if (token.pool.curveType == CurveType.LINEAR) {
             uint256 numerator = amountIn * token.pool.reserveTokens;
-            uint256 denominator = token.pool.reserveETH + amountIn;
+            uint256 denominator = (token.pool.reserveETH) + amountIn;
             amountOut = numerator / denominator;
-        } else {
-            // Exponential curve
-            uint256 currentSupply = token.pool.reserveTokens;
-            uint256 basePrice = token.pool.reserveETH / currentSupply;
-            uint256 totalCost = 0;
-            amountOut = 0;
-            uint256 currentPrice = basePrice;
+        } else if (token.pool.curveType == CurveType.EXPONENTIAL) {
 
-            while (totalCost < amountIn && amountOut < currentSupply) {
-                uint256 nextPrice = (currentPrice * baseMultiplier) / HUNDRED;
-                if (totalCost + nextPrice > amountIn) break;
-                totalCost += nextPrice;
-                currentPrice = nextPrice;
-                amountOut++;
-            }
         }
     }
 
@@ -735,9 +726,5 @@ contract FunPool is Ownable, ReentrancyGuard {
 
     function updateteamFeeper(uint16 _newFeePer) public onlyOwner {
         feePer = _newFeePer;
-    }
-
-    function updateBaseMultiplier(uint16 _newBaseMultiplier) public onlyOwner {
-        baseMultiplier = _newBaseMultiplier;
     }
 }
