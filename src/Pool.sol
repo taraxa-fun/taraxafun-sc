@@ -13,6 +13,8 @@ import {Clones} from "./libraries/Clones.sol";
 import {IFunDeployer} from "./interfaces/IFunDeployer.sol";
 import {IFunEventTracker} from "./interfaces/IFunEventTracker.sol";
 
+import "forge-std/console.sol";
+
 interface UniswapRouter02 {
     function factory() external pure returns (address);
     function WETH() external pure returns (address);
@@ -87,14 +89,10 @@ interface IFunToken {
 }
 
 contract FunPool is Ownable, ReentrancyGuard {
+
     address public constant DEAD = 0x000000000000000000000000000000000000dEaD;
     uint256 public constant HUNDRED = 100;
     uint256 public constant BASIS_POINTS = 10000;
-
-    enum CurveType {
-        LINEAR,
-        EXPONENTIAL
-    }
 
     struct FunTokenPoolData {
         uint256 reserveTokens;
@@ -102,12 +100,10 @@ contract FunPool is Ownable, ReentrancyGuard {
         uint256 volume;
         uint256 listThreshold;
         uint256 initialReserveEth;
-        uint256 factor;
         uint8 nativePer;
         bool tradeActive;
         bool lpBurn;
         bool royalemitted;
-        CurveType curveType;
     }
 
     struct FunTokenPool {
@@ -197,9 +193,7 @@ contract FunPool is Ownable, ReentrancyGuard {
         address _baseToken,
         address _router,
         uint256[2] memory listThreshold_initReserveEth,
-        bool lpBurn,
-        uint256 _curveFactor,
-        CurveType _curveType
+        bool lpBurn
     ) public payable returns (address) {
         require(allowedDeployers[msg.sender], "not deployer");
 
@@ -229,8 +223,6 @@ contract FunPool is Ownable, ReentrancyGuard {
         pool.pool.reserveETH += (listThreshold_initReserveEth[1] + msg.value);
         pool.pool.listThreshold = listThreshold_initReserveEth[0];
         pool.pool.initialReserveEth = listThreshold_initReserveEth[1];
-        pool.pool.factor = _curveFactor;
-        pool.pool.curveType = _curveType;
 
         // add the fun data for the fun token
         tokenPools[funToken] = pool;
@@ -242,24 +234,29 @@ contract FunPool is Ownable, ReentrancyGuard {
     }
 
     // Calculate amount of output tokens or ETH to give out
-    function getAmountOutTokens(address funToken, uint256 amountIn) public view returns (uint256 amountOut) {
+    function getAmountOutTokens(address funToken, uint256 amountIn)
+        public
+        view
+        returns (uint256 amountOut)
+    {
         require(amountIn > 0, "Invalid input amount");
         FunTokenPool storage token = tokenPools[funToken];
         require(token.pool.reserveTokens > 0 && token.pool.reserveETH > 0, "Invalid reserves");
 
-        if (token.pool.curveType == CurveType.LINEAR) {
-            uint256 numerator = amountIn * token.pool.reserveTokens;
-            uint256 denominator = (token.pool.reserveETH) + amountIn;
-            amountOut = numerator / denominator;
-        } else if (token.pool.curveType == CurveType.EXPONENTIAL) {
-
-        }
+        uint256 numerator = amountIn * token.pool.reserveTokens;
+        uint256 denominator = (token.pool.reserveETH) + amountIn;
+        amountOut = numerator / denominator;
     }
 
-    function getAmountOutETH(address funToken, uint256 amountIn) public view returns (uint256 amountOut) {
+    function getAmountOutETH(address funToken, uint256 amountIn)
+        public
+        view
+        returns (uint256 amountOut)
+    {
         require(amountIn > 0, "Invalid input amount");
         FunTokenPool storage token = tokenPools[funToken];
         require(token.pool.reserveTokens > 0 && token.pool.reserveETH > 0, "Invalid reserves");
+
         uint256 numerator = amountIn * token.pool.reserveETH;
         uint256 denominator = (token.pool.reserveTokens) + amountIn;
         amountOut = numerator / denominator;

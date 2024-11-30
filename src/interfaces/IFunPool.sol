@@ -18,8 +18,4 @@ interface IFunPool {
         address _affiliate
     ) external payable;
 
-    enum CurveType {
-        LINEAR,
-        EXPONENTIAL
-    }
 }
