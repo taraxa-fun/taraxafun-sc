@@ -48,7 +48,6 @@ contract FunDeployer is Ownable {
     uint256 public baseCount;
     bool public supplyLock = true;
     bool public curveFactorLock = true;
-    bool public lpBurn = true;
     mapping(address => bool) public routerValid;
     mapping(address => bool) public routerAdded;
     mapping(uint256 => address) public routerStorage;
@@ -121,8 +120,7 @@ contract FunDeployer is Ownable {
             msg.sender,
             _baseToken,
             _router,
-            [listThreshold, initialReserveEth],
-            lpBurn
+            [listThreshold, initialReserveEth]
         );
         IFunStorageInterface(funStorage).addFunContract(
             msg.sender,
@@ -284,9 +282,6 @@ contract FunDeployer is Ownable {
     }
     function updateAntiSnipePer(uint256 _newAntiSnipePer) public onlyOwner {
         antiSnipePer = _newAntiSnipePer;
-    }
-    function stateChangeLPBurn(bool _state) public onlyOwner {
-        lpBurn = _state;
     }
 
     function updateAffiliatePerBaseTenK(uint256 _newAffPer) public onlyOwner {

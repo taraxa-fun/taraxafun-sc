@@ -8,8 +8,7 @@ interface IFunPool {
         address _creator,
         address _baseToken,
         address _router,
-        uint256[2] memory listThreshold_initReserveEth,
-        bool lpBurn
+        uint256[2] memory listThreshold_initReserveEth
     ) external payable returns (address);
 
     function buyTokens(
