@@ -38,12 +38,12 @@ contract FunDeployer is Ownable {
     uint256 public teamFee = 10000000; // value in wei
     uint256 public teamFeePer = 100; // base of 10000 -> 100 equals 1%
     uint256 public ownerFeePer = 1000; // base of 10000 -> 1000 means 10%
-    uint256 public listThreshold = 12000; // value in ether -> 12000 means 12000 tokens(any decimal place)
+    uint256 public listThreshold = 1200000000000; // value in ether -> 12000 means 12000 tokens(any decimal place)
     uint256 public antiSnipePer = 5; // base of 100 -> 5 equals 5%
     uint256 public affiliatePer = 1000; // base of 10000 -> 1000 equals 10%
-    uint256 public supplyValue = 1000000000 ether;
+    uint256 public supplyValue = 1000 ether;
     uint256 public initialReserveEth = 1 ether;
-    uint256 public curveFactor = 0.2 ether;
+    uint256 public curveFactor = 0.005 ether;
     uint256 public routerCount;
     uint256 public baseCount;
     bool public supplyLock = true;
@@ -80,19 +80,18 @@ contract FunDeployer is Ownable {
         bool _antiSnipe,
         uint256 _amountAntiSnipe,
         uint256 _curveFactor,
-        IFunPool.CurveType _curveType
+        bool _isLinearCurve
     ) public payable {
         require(routerValid[_router], "invalid router");
         require(baseValid[_baseToken], "invalid base token");
+
         if (supplyLock) {
             require(_totalSupply == supplyValue, "invalid supply");
         }
-
         if (_antiSnipe) {
             require(_amountAntiSnipe > 0, "invalid antisnipe value");
         }
-
-        if (_curveType == IFunPool.CurveType.EXPONENTIAL) {
+        if (!_isLinearCurve) {
             require(_curveFactor > 0, "invalid factor");
             if (curveFactorLock){
                 require(_curveFactor == curveFactor, "invalid curve factor");
@@ -123,7 +122,9 @@ contract FunDeployer is Ownable {
             _baseToken,
             _router,
             [listThreshold, initialReserveEth],
-            lpBurn
+            lpBurn,
+            _curveFactor,
+            _isLinearCurve ? IFunPool.CurveType.LINEAR : IFunPool.CurveType.EXPONENTIAL
         );
         IFunStorageInterface(funStorage).addFunContract(
             msg.sender,

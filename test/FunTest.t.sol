@@ -7,6 +7,7 @@ import {FunEventTracker} from "../src/EventTracker.sol";
 import {FunPool} from "../src/Pool.sol";
 import {FunStorage} from "../src/Storage.sol";
 import {SimpleERC20} from "../src/SimpleERC20.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 
 contract FunTest is Test {
@@ -47,7 +48,7 @@ contract FunTest is Test {
         eventTracker = new FunEventTracker(address(funStorage));
 
         pool = new FunPool(
-            address(implementation), address(treasury), address(treasury), usdcETH, address(eventTracker), 100
+            address(implementation), address(treasury), address(treasury), usdcETH, address(eventTracker), 0
         );
 
         deployer = new FunDeployer(address(pool), address(treasury), address(funStorage), address(eventTracker));
@@ -67,20 +68,28 @@ contract FunTest is Test {
             "TestToken", 
             "TT", 
             "Test Token DATA", 
-            1000000000 ether,
+            1000 ether,
             0, 
             address(wethETH), 
             address(routerV2ETH), 
             false, 
-            0
+            0,
+            0.005 ether,
+            false
         );
 
         FunStorage.FunDetails memory funTokenDetail = funStorage.getFunContract(0);
 
         pool.getCurrentCap(funTokenDetail.funAddress);
 
-        uint256 amountOut = pool.getAmountOutETH(funTokenDetail.funAddress, .1 ether);
+        (uint256 amountOut,) = pool.getAmountOutTokens(funTokenDetail.funAddress, 1 ether);
 
-        pool.buyTokens{value : .1 ether}(funTokenDetail.funAddress, amountOut, address(0x0));
+        pool.buyTokens{value : 1 ether}(funTokenDetail.funAddress, amountOut, address(0x0));
+
+        (uint256 amountOut2,) = pool.getAmountOutETH(funTokenDetail.funAddress, IERC20(funTokenDetail.tokenAddress).balanceOf(address(owner)));
+
+        // pool.sellTokens(funTokenDetail.funAddress, IERC20(funTokenDetail.tokenAddress).balanceOf(address(owner)), amountOut2, address(0x0));
+
+        owner.balance;
     }
 }

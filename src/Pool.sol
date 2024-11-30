@@ -13,6 +13,11 @@ import {Clones} from "./libraries/Clones.sol";
 import {IFunDeployer} from "./interfaces/IFunDeployer.sol";
 import {IFunEventTracker} from "./interfaces/IFunEventTracker.sol";
 
+import {FixedPointMathLib} from "solmate/utils/FixedPointMathLib.sol";
+import {wadExp} from "@solmate/src/utils/SignedWadMath.sol";
+
+import "forge-std/console.sol";
+
 interface UniswapRouter02 {
     function factory() external pure returns (address);
     function WETH() external pure returns (address);
@@ -87,6 +92,8 @@ interface IFunToken {
 }
 
 contract FunPool is Ownable, ReentrancyGuard {
+    using FixedPointMathLib for uint256;
+
     address public constant DEAD = 0x000000000000000000000000000000000000dEaD;
     uint256 public constant HUNDRED = 100;
     uint256 public constant BASIS_POINTS = 10000;
@@ -103,6 +110,7 @@ contract FunPool is Ownable, ReentrancyGuard {
         uint256 listThreshold;
         uint256 initialReserveEth;
         uint256 factor;
+        uint256 expPrice;
         uint8 nativePer;
         bool tradeActive;
         bool lpBurn;
@@ -231,6 +239,7 @@ contract FunPool is Ownable, ReentrancyGuard {
         pool.pool.initialReserveEth = listThreshold_initReserveEth[1];
         pool.pool.factor = _curveFactor;
         pool.pool.curveType = _curveType;
+        pool.pool.expPrice = FixedPointMathLib.divWadDown(pool.pool.reserveETH, pool.pool.reserveTokens);
 
         // add the fun data for the fun token
         tokenPools[funToken] = pool;
@@ -242,7 +251,7 @@ contract FunPool is Ownable, ReentrancyGuard {
     }
 
     // Calculate amount of output tokens or ETH to give out
-    function getAmountOutTokens(address funToken, uint256 amountIn) public view returns (uint256 amountOut) {
+    function getAmountOutTokens(address funToken, uint256 amountIn) public view returns (uint256 amountOut, uint256 newPrice) {
         require(amountIn > 0, "Invalid input amount");
         FunTokenPool storage token = tokenPools[funToken];
         require(token.pool.reserveTokens > 0 && token.pool.reserveETH > 0, "Invalid reserves");
@@ -252,17 +261,36 @@ contract FunPool is Ownable, ReentrancyGuard {
             uint256 denominator = (token.pool.reserveETH) + amountIn;
             amountOut = numerator / denominator;
         } else if (token.pool.curveType == CurveType.EXPONENTIAL) {
-
+            /// initialPrice = reserveETH / reserveTokens
+            /// amountOut = initialPrice * exp^(factor * amountIn)
+            uint256 initialPrice = token.pool.expPrice;
+            int256 expFactor = wadExp(int256(FixedPointMathLib.mulWadDown(token.pool.factor, amountIn)));
+            
+            newPrice = FixedPointMathLib.mulWadDown(initialPrice, uint256(expFactor));
+            amountOut = FixedPointMathLib.divWadDown(amountIn, newPrice);
         }
     }
 
-    function getAmountOutETH(address funToken, uint256 amountIn) public view returns (uint256 amountOut) {
+    function getAmountOutETH(address funToken, uint256 amountIn) public view returns (uint256 amountOut, uint256 newPrice) {
         require(amountIn > 0, "Invalid input amount");
         FunTokenPool storage token = tokenPools[funToken];
         require(token.pool.reserveTokens > 0 && token.pool.reserveETH > 0, "Invalid reserves");
-        uint256 numerator = amountIn * token.pool.reserveETH;
-        uint256 denominator = (token.pool.reserveTokens) + amountIn;
-        amountOut = numerator / denominator;
+        if (token.pool.curveType == CurveType.LINEAR) {
+            uint256 numerator = amountIn * token.pool.reserveETH;
+            uint256 denominator = (token.pool.reserveTokens) + amountIn;
+            amountOut = numerator / denominator;
+        } else if (token.pool.curveType == CurveType.EXPONENTIAL) {
+            // minimum price to prevent numerical issues
+            uint256 minPrice = 1 gwei;
+            uint256 initialPrice = token.pool.expPrice > minPrice ? token.pool.expPrice : minPrice;
+
+            int256 exp = wadExp(int256(FixedPointMathLib.mulWadDown(token.pool.factor, amountIn)));
+            /// e^(-x) = 1/e^x
+            uint256 expFactor = FixedPointMathLib.divWadDown(1e18, uint256(exp));
+
+            newPrice = FixedPointMathLib.mulWadDown(initialPrice, expFactor);
+            amountOut = FixedPointMathLib.mulWadDown(amountIn, newPrice);
+        }
     }
 
     function getBaseToken(address funToken) public view returns (address) {
@@ -323,7 +351,7 @@ contract FunPool is Ownable, ReentrancyGuard {
         require(token.pool.tradeActive, "Trading not active");
 
         uint256 tokenToSell = tokenAmount;
-        uint256 ethAmount = getAmountOutETH(funToken, tokenToSell);
+        (uint256 ethAmount, uint256 newPrice) = getAmountOutETH(funToken, tokenToSell);
         uint256 ethAmountFee = (ethAmount * feePer) / BASIS_POINTS;
         uint256 ethAmountOwnerFee = (ethAmountFee * (IFunDeployer(token.deployer).getOwnerPer())) / BASIS_POINTS;
         uint256 affiliateFee =
@@ -333,6 +361,7 @@ contract FunPool is Ownable, ReentrancyGuard {
         token.pool.reserveTokens += tokenAmount;
         token.pool.reserveETH -= ethAmount;
         token.pool.volume += ethAmount;
+        token.pool.expPrice = newPrice;
 
         IERC20(funToken).transferFrom(msg.sender, address(this), tokenToSell);
         (bool success,) = feeContract.call{value: ethAmountFee - ethAmountOwnerFee - affiliateFee}(""); // paying plat fee
@@ -383,12 +412,13 @@ contract FunPool is Ownable, ReentrancyGuard {
             uint256 affiliateFee =
                 (ethAmountFee * (IFunDeployer(token.deployer).getAffiliatePer(_affiliate))) / BASIS_POINTS;
 
-            uint256 tokenAmount = getAmountOutTokens(funToken, ethAmount - ethAmountFee);
+            (uint256 tokenAmount, uint256 newPrice) = getAmountOutTokens(funToken, ethAmount - ethAmountFee);
             require(tokenAmount >= minTokens, "Slippage too high");
 
             token.pool.reserveETH += (ethAmount - ethAmountFee);
             token.pool.reserveTokens -= tokenAmount;
             token.pool.volume += ethAmount;
+            token.pool.expPrice = newPrice;
 
             (bool success,) = feeContract.call{value: ethAmountFee - ethAmountOwnerFee - affiliateFee}(""); // paying plat fee
             require(success, "fee ETH transfer failed");
