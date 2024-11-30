@@ -13,6 +13,8 @@ import {Clones} from "./libraries/Clones.sol";
 import {IFunDeployer} from "./interfaces/IFunDeployer.sol";
 import {IFunEventTracker} from "./interfaces/IFunEventTracker.sol";
 
+import {IUniswapRouter02} from "@uniswap-v2/contracts/IUniswapRouter02.sol";
+
 import "forge-std/console.sol";
 
 interface UniswapRouter02 {
