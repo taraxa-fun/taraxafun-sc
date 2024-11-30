@@ -73,9 +73,7 @@ contract FunTest is Test {
             address(wethETH), 
             address(routerV2ETH), 
             false, 
-            0,
-            0.005 ether,
-            false
+            0
         );
 
         FunStorage.FunDetails memory funTokenDetail = funStorage.getFunContract(0);

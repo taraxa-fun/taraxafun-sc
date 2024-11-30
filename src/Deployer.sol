@@ -122,9 +122,7 @@ contract FunDeployer is Ownable {
             _baseToken,
             _router,
             [listThreshold, initialReserveEth],
-            lpBurn,
-            _curveFactor,
-            _isLinearCurve ? IFunPool.CurveType.LINEAR : IFunPool.CurveType.EXPONENTIAL
+            lpBurn
         );
         IFunStorageInterface(funStorage).addFunContract(
             msg.sender,

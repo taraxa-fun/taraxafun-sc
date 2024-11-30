@@ -9,9 +9,7 @@ interface IFunPool {
         address _baseToken,
         address _router,
         uint256[2] memory listThreshold_initReserveEth,
-        bool lpBurn,
-        uint256 _curveFactor,
-        CurveType _curveType
+        bool lpBurn
     ) external payable returns (address);
 
     function buyTokens(
@@ -20,8 +18,4 @@ interface IFunPool {
         address _affiliate
     ) external payable;
 
-    enum CurveType {
-        LINEAR,
-        EXPONENTIAL
-    }
 }
