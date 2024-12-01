@@ -38,16 +38,14 @@ contract FunDeployer is Ownable {
     uint256 public teamFee = 10000000; // value in wei
     uint256 public teamFeePer = 100; // base of 10000 -> 100 equals 1%
     uint256 public ownerFeePer = 1000; // base of 10000 -> 1000 means 10%
-    uint256 public listThreshold = 1200000000000; // value in ether -> 12000 means 12000 tokens(any decimal place)
+    uint256 public listThreshold = 12000; // value in ether -> 12000 means 12000 tokens(any decimal place)
     uint256 public antiSnipePer = 5; // base of 100 -> 5 equals 5%
     uint256 public affiliatePer = 1000; // base of 10000 -> 1000 equals 10%
-    uint256 public supplyValue = 1000 ether;
+    uint256 public supplyValue = 1000000000 ether;
     uint256 public initialReserveEth = 1 ether;
-    uint256 public curveFactor = 0.005 ether;
     uint256 public routerCount;
     uint256 public baseCount;
     bool public supplyLock = true;
-    bool public curveFactorLock = true;
     mapping(address => bool) public routerValid;
     mapping(address => bool) public routerAdded;
     mapping(uint256 => address) public routerStorage;
@@ -74,15 +72,10 @@ contract FunDeployer is Ownable {
         string memory _data,
         uint256 _totalSupply,
         uint256 _liquidityETHAmount,
-        address _baseToken,
-        address _router,
         bool _antiSnipe,
         uint256 _amountAntiSnipe,
-        uint256 _curveFactor,
-        bool _isLinearCurve
+        uint256 _maxBuyPerWallet
     ) public payable {
-        require(routerValid[_router], "invalid router");
-        require(baseValid[_baseToken], "invalid base token");
 
         if (supplyLock) {
             require(_totalSupply == supplyValue, "invalid supply");
@@ -90,11 +83,15 @@ contract FunDeployer is Ownable {
         if (_antiSnipe) {
             require(_amountAntiSnipe > 0, "invalid antisnipe value");
         }
-        if (!_isLinearCurve) {
-            require(_curveFactor > 0, "invalid factor");
-            if (curveFactorLock){
-                require(_curveFactor == curveFactor, "invalid curve factor");
-            }
+
+        if (_maxBuyPerWallet > 0) {
+            require(
+                _maxBuyPerWallet >= _totalSupply / 500, /// min 0.5% of total supply
+                "invalid max buy per wallet"
+            );
+        }
+        else {
+            _maxBuyPerWallet = _totalSupply;
         }
 
         require(
@@ -118,15 +115,13 @@ contract FunDeployer is Ownable {
             [_name, _symbol],
             _totalSupply,
             msg.sender,
-            _baseToken,
-            _router,
-            [listThreshold, initialReserveEth]
+            [listThreshold, initialReserveEth],
+            _maxBuyPerWallet
         );
         IFunStorageInterface(funStorage).addFunContract(
             msg.sender,
             (funToken),
             funToken,
-            address(_router),
             _name,
             _symbol,
             _data,
@@ -290,14 +285,6 @@ contract FunDeployer is Ownable {
 
     function updateteamFeeper(uint256 _newFeePer) public onlyOwner {
         teamFeePer = _newFeePer;
-    }
-
-    function updateCurveFactor(uint256 _newFactor) public onlyOwner {
-        curveFactor = _newFactor;
-    }
-
-    function stateChangeCurveFactorLock(bool _state) public onlyOwner {
-        curveFactorLock = _state;
     }
 
     function emitRoyal(

@@ -8,7 +8,6 @@ contract FunStorage is Ownable {
         address funAddress;
         address tokenAddress;
         address funOwner;
-        address router;
         string name;
         string symbol;
         string data;
@@ -38,7 +37,6 @@ contract FunStorage is Ownable {
         address _funOwner,
         address _funAddress,
         address _tokenAddress,
-        address _routerAddress,
         string memory _name,
         string memory _symbol,
         string memory _data,
@@ -49,7 +47,6 @@ contract FunStorage is Ownable {
             funAddress: _funAddress,
             tokenAddress: _tokenAddress,
             funOwner: _funOwner,
-            router: _routerAddress,
             name: _name,
             symbol: _symbol,
             data: _data,

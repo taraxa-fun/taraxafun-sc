@@ -42,13 +42,16 @@ contract FunTest is Test {
         vm.startPrank(owner);
 
         implementation = new SimpleERC20();
-
         funStorage = new FunStorage();
-
         eventTracker = new FunEventTracker(address(funStorage));
 
         pool = new FunPool(
-            address(implementation), address(treasury), address(treasury), usdcETH, address(eventTracker), 0
+            address(implementation), 
+            address(treasury),
+            address(treasury), 
+            usdcETH, 
+            address(eventTracker), 
+            0
         );
 
         deployer = new FunDeployer(address(pool), address(treasury), address(funStorage), address(eventTracker));
@@ -68,11 +71,10 @@ contract FunTest is Test {
             "TestToken", 
             "TT", 
             "Test Token DATA", 
-            1000 ether,
+            1000000000 ether,
             0, 
-            address(wethETH), 
-            address(routerV2ETH), 
             false, 
+            0,
             0
         );
 
@@ -80,14 +82,15 @@ contract FunTest is Test {
 
         pool.getCurrentCap(funTokenDetail.funAddress);
 
-        (uint256 amountOut,) = pool.getAmountOutTokens(funTokenDetail.funAddress, 1 ether);
+        uint256 amountOut = pool.getAmountOutTokens(funTokenDetail.funAddress, .1 ether);
 
-        pool.buyTokens{value : 1 ether}(funTokenDetail.funAddress, amountOut, address(0x0));
+        pool.buyTokens{value : .1 ether}(funTokenDetail.funAddress, amountOut, address(0x0));
 
-        (uint256 amountOut2,) = pool.getAmountOutETH(funTokenDetail.funAddress, IERC20(funTokenDetail.tokenAddress).balanceOf(address(owner)));
+
+        /// uint256 amountOut2 = pool.getAmountOutETH(funTokenDetail.funAddress, IERC20(funTokenDetail.tokenAddress).balanceOf(address(owner)));
 
         // pool.sellTokens(funTokenDetail.funAddress, IERC20(funTokenDetail.tokenAddress).balanceOf(address(owner)), amountOut2, address(0x0));
 
-        owner.balance;
+        // owner.balance;
     }
 }

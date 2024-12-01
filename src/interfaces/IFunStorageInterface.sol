@@ -6,7 +6,6 @@ interface IFunStorageInterface {
         address _funOwner,
         address _funAddress,
         address _tokenAddress,
-        address _routerAddress,
         string memory _name,
         string memory _symbol,
         string memory _data,
