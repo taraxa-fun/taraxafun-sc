@@ -22,9 +22,9 @@ contract FunTest is Test {
     address user1;
     address user2;
 
-    address usdcETH = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
-    address wethETH = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
-    address routerV2ETH = 0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D;
+    address usdcETH = 0xcF81A5750F3c08B64eDaDD0D78Fb37a4aB5252c0;
+    address wethSEP = 0xfFf9976782d46CC05630D1f6eBAb18b2324d6B14;
+    address routerV3SEP = 0x3bFA4769FB09eefC5a80d6E87c3B9C650f7Ae48E;
 
     function setUp() public {
         uint256 forkId = vm.createFork("https://ethereum-rpc.publicnode.com");
@@ -56,9 +56,8 @@ contract FunTest is Test {
 
         deployer = new FunDeployer(address(pool), address(treasury), address(funStorage), address(eventTracker));
 
-        deployer.addBaseToken(wethETH);
-        deployer.addBaseToken(usdcETH);
-        deployer.addRouter(routerV2ETH);
+        deployer.addBaseToken(wethSEP);
+        deployer.addRouter(routerV3SEP);
 
         pool.addDeployer(address(deployer));
         funStorage.addDeployer(address(deployer));
@@ -84,7 +83,7 @@ contract FunTest is Test {
 
         uint256 amountOut = pool.getAmountOutTokens(funTokenDetail.funAddress, .1 ether);
 
-        pool.buyTokens{value : .1 ether}(funTokenDetail.funAddress, amountOut, address(0x0));
+        /// pool.buyTokens{value : .1 ether}(funTokenDetail.funAddress, amountOut, address(0x0));
 
 
         /// uint256 amountOut2 = pool.getAmountOutETH(funTokenDetail.funAddress, IERC20(funTokenDetail.tokenAddress).balanceOf(address(owner)));

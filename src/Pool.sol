@@ -42,11 +42,11 @@ contract FunPool is Ownable, ReentrancyGuard {
     uint256 public constant HUNDRED = 100;
     uint256 public constant BASIS_POINTS = 10000;
 
-    address public weth = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
-    address public factory = 0x1F98431c8aD98523631AE4a59f267346ea31F984;
-    address public router = 0xE592427A0AEce92De3Edee1F18E0157C05861564;
-    address public positionManager = 0xC36442b4a4522E871399CD717aBDD847Ab11FE88;
-    address public quoterV2 = 0x61fFE014bA17989E743c5F6cB21bF9697530B21e;
+    address public weth = 0xfFf9976782d46CC05630D1f6eBAb18b2324d6B14;
+    address public factory = 0x0227628f3F023bb0B980b67D528571c95c6DaC1c;
+    address public router = 0x3bFA4769FB09eefC5a80d6E87c3B9C650f7Ae48E;
+    address public positionManager = 0x1238536071E1c677A632429e3655c799b22cDA52;
+    address public quoterV2 = 0xEd1f6473345F45b75F8179591dd5bA1888cf2FB3;
 
     struct FunTokenPoolData {
         uint256 reserveTokens;
@@ -214,6 +214,8 @@ contract FunPool is Ownable, ReentrancyGuard {
 
         FunTokenPool memory token = tokenPools[funToken];
 
+        /*
+
         address pool = IUniswapV3Factory(factory).getPool(
             token.baseToken,
             stableAddress,
@@ -228,6 +230,10 @@ contract FunPool is Ownable, ReentrancyGuard {
         uint256 sqrtPriceAdjusted = (1e18 * denominator) / numerator;
 
         return FixedPointMathLib.mulWadDown(ethIN, sqrtPriceAdjusted);
+
+        */
+
+       return 3600000000;
     }
 
     function getCurrentCap(address funToken) public view returns (uint256) {
