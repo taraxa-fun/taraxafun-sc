@@ -9,6 +9,7 @@ import {IFunStorageInterface} from "./interfaces/IFunStorageInterface.sol";
 import {IFunEventTracker} from "./interfaces/IFunEventTracker.sol";
 
 contract FunDeployer is Ownable {
+
     event funCreated(
         address indexed creator,
         address indexed funContract,
@@ -20,104 +21,79 @@ contract FunDeployer is Ownable {
         uint256 initialReserve,
         uint256 timestamp
     );
+
     event royal(
-        address indexed funContract,
         address indexed tokenAddress,
-        address indexed router,
-        address baseAddress,
         uint256 liquidityAmount,
         uint256 tokenAmount,
-        uint256 _time,
+        uint256 time,
         uint256 totalVolume
     );
 
-    address public creationFeeDistributionContract;
+    address public feeWallet;
     address public funStorage;
     address public eventTracker;
     address public funPool;
-    uint256 public teamFee = 10000000; // value in wei
-    uint256 public teamFeePer = 100; // base of 10000 -> 100 equals 1%
-    uint256 public ownerFeePer = 1000; // base of 10000 -> 1000 means 10%
-    uint256 public listThreshold = 12000; // value in ether -> 12000 means 12000 tokens(any decimal place)
-    uint256 public antiSnipePer = 5; // base of 100 -> 5 equals 5%
+
+    uint256 public deploymentFee = 10000000; // wei
+
+    uint256 public antiSnipePer = 500; // base of 10000 -> 500 equals 5%
     uint256 public affiliatePer = 1000; // base of 10000 -> 1000 equals 10%
-    uint256 public supplyValue = 1000000000 ether;
-    uint256 public initialReserveEth = 1 ether;
-    uint256 public routerCount;
-    uint256 public baseCount;
-    bool public supplyLock = true;
+    uint256 public devFeePer = 1000; // base of 10000 -> 1000 means 10%
+    uint256 public tradingFeePer = 100; // base of 10000 -> 100 equals 1%
+
+    uint256 public listThreshold = 12000; // listing marketcap in $USD
+    uint256 public initialReserveTARA = 0.5 ether;
+
     mapping(address => bool) public routerValid;
     mapping(address => bool) public routerAdded;
     mapping(uint256 => address) public routerStorage;
-    mapping(address => bool) public baseValid;
-    mapping(address => bool) public baseAdded;
-    mapping(uint256 => address) public baseStorage;
+
     mapping(address => uint256) public affiliateSpecialPer;
     mapping(address => bool) public affiliateSpecial;
+
     constructor(
         address _funPool,
-        address _creationFeeContract,
+        address _feeWallet,
         address _funStorage,
         address _eventTracker
     ) Ownable(msg.sender) {
         funPool = _funPool;
-        creationFeeDistributionContract = _creationFeeContract;
+        feeWallet = _feeWallet;
         funStorage = _funStorage;
         eventTracker = _eventTracker;
     }
 
-    function CreateFun(
+    function createFun(
         string memory _name,
         string memory _symbol,
         string memory _data,
         uint256 _totalSupply,
         uint256 _liquidityETHAmount,
-        bool _antiSnipe,
         uint256 _amountAntiSnipe,
-        uint256 _maxBuyPerWallet
-    ) public payable {
-
-        if (supplyLock) {
-            require(_totalSupply == supplyValue, "invalid supply");
-        }
-        if (_antiSnipe) {
-            require(_amountAntiSnipe > 0, "invalid antisnipe value");
-        }
+        uint256 _maxBuyPerWallet) public payable {
+            
+        require(_amountAntiSnipe <= ((initialReserveTARA * antiSnipePer) / 10000),"over antisnipe restrictions");
+        require(msg.value >= (deploymentFee + _liquidityETHAmount + _amountAntiSnipe),"fee amount error");
 
         if (_maxBuyPerWallet > 0) {
-            require(
-                _maxBuyPerWallet >= _totalSupply / 500, /// min 0.5% of total supply
-                "invalid max buy per wallet"
-            );
+            require(_maxBuyPerWallet >= _totalSupply - ((_totalSupply * 5) / 1000), "invalid max buy per wallet");
         }
         else {
             _maxBuyPerWallet = _totalSupply;
         }
 
-        require(
-            _amountAntiSnipe <= ((initialReserveEth * antiSnipePer) / 100),
-            "over antisnipe restrictions"
-        );
-
-        require(
-            msg.value >= (teamFee + _liquidityETHAmount + _amountAntiSnipe),
-            "fee amount error"
-        );
-
-        (bool feeSuccess, ) = creationFeeDistributionContract.call{
-            value: teamFee
-        }("");
+        (bool feeSuccess, ) = feeWallet.call{value: deploymentFee}("");
         require(feeSuccess, "creation fee failed");
 
-        address funToken = IFunPool(funPool).createFun{
-            value: _liquidityETHAmount
-        }(
+        address funToken = IFunPool(funPool).initFun{value: _liquidityETHAmount}(
             [_name, _symbol],
             _totalSupply,
             msg.sender,
-            [listThreshold, initialReserveEth],
+            [listThreshold, initialReserveTARA],
             _maxBuyPerWallet
         );
+        
         IFunStorageInterface(funStorage).addFunContract(
             msg.sender,
             (funToken),
@@ -129,7 +105,19 @@ contract FunDeployer is Ownable {
             _liquidityETHAmount
         );
 
-        if (_antiSnipe) {
+        IFunEventTracker(eventTracker).createFunEvent(
+            msg.sender,
+            (funToken),
+            (funToken),
+            _name,
+            _symbol,
+            _data,
+            _totalSupply,
+            initialReserveTARA + _liquidityETHAmount,
+            block.timestamp
+        );
+
+        if (_amountAntiSnipe > 0) {
             IFunPool(funPool).buyTokens{value: _amountAntiSnipe}(
                 funToken,
                 0,
@@ -140,17 +128,7 @@ contract FunDeployer is Ownable {
                 IERC20(funToken).balanceOf(address(this))
             );
         }
-        IFunEventTracker(eventTracker).createFunEvent(
-            msg.sender,
-            (funToken),
-            (funToken),
-            _name,
-            _symbol,
-            _data,
-            _totalSupply,
-            initialReserveEth + _liquidityETHAmount,
-            block.timestamp
-        );
+
         emit funCreated(
             msg.sender,
             (funToken),
@@ -159,159 +137,105 @@ contract FunDeployer is Ownable {
             _symbol,
             _data,
             _totalSupply,
-            initialReserveEth + _liquidityETHAmount,
+            initialReserveTARA + _liquidityETHAmount,
             block.timestamp
         );
     }
 
-    function updateTeamFee(uint256 _newTeamFeeInWei) public onlyOwner {
-        teamFee = _newTeamFeeInWei;
-    }
-    function updateownerFee(uint256 _newOwnerFeeBaseTenK) public onlyOwner {
-        ownerFeePer = _newOwnerFeeBaseTenK;
+    function getTradingFeePer() public view returns (uint256) {
+        return tradingFeePer;
     }
 
-    function updateSpecialAffiliateData(
-        address _affiliateAddrs,
-        bool _status,
-        uint256 _specialPer
-    ) public onlyOwner {
-        affiliateSpecial[_affiliateAddrs] = _status;
-        affiliateSpecialPer[_affiliateAddrs] = _specialPer;
-    }
-
-    function getAffiliatePer(
-        address _affiliateAddrs
-    ) public view returns (uint256) {
+    function getAffiliatePer(address _affiliateAddrs) public view returns (uint256) {
         if (affiliateSpecial[_affiliateAddrs]) {
             return affiliateSpecialPer[_affiliateAddrs];
         } else {
             return affiliatePer;
         }
     }
-    function getOwnerPer() public view returns (uint256) {
-        return ownerFeePer;
+
+    function getDevFeePer() public view returns (uint256) {
+        return devFeePer;
     }
-    function getSpecialAffiliateValidity(
-        address _affiliateAddrs
-    ) public view returns (bool) {
+
+    function getSpecialAffiliateValidity(address _affiliateAddrs) public view returns (bool) {
         return affiliateSpecial[_affiliateAddrs];
     }
-    function updateSupplyValue(uint256 _newSupplyVal) public onlyOwner {
-        supplyValue = _newSupplyVal;
-    }
-    function updateInitResEthVal(uint256 _newVal) public onlyOwner {
-        initialReserveEth = _newVal;
-    }
-    function stateChangeSupplyLock(bool _lockState) public onlyOwner {
-        supplyLock = _lockState;
-    }
-    function addRouter(address _routerAddress) public onlyOwner {
-        require(!routerAdded[_routerAddress], "already added");
-        routerAdded[_routerAddress] = true;
-        routerValid[_routerAddress] = true;
-        routerStorage[routerCount] = _routerAddress;
-        routerCount++;
+
+    function setDeploymentFee(uint256 _newdeploymentFee) public onlyOwner {
+        require(_newdeploymentFee > 0, "invalid fee");
+        deploymentFee = _newdeploymentFee;
     }
 
-    function disableRouter(address _routerAddress) public onlyOwner {
-        require(routerAdded[_routerAddress], "not added");
-        require(routerValid[_routerAddress], "not valid");
-        routerValid[_routerAddress] = false;
-    }
-    function enableRouter(address _routerAddress) public onlyOwner {
-        require(routerAdded[_routerAddress], "not added");
-        require(!routerValid[_routerAddress], "already enabled");
-        routerValid[_routerAddress] = true;
-    }
-    function addBaseToken(address _baseTokenAddress) public onlyOwner {
-        require(!baseAdded[_baseTokenAddress], "already added");
-        baseAdded[_baseTokenAddress] = true;
-        baseValid[_baseTokenAddress] = true;
-        baseStorage[baseCount] = _baseTokenAddress;
-        baseCount++;
+    function setDevFeePer(uint256 _newOwnerFee) public onlyOwner {
+        require(_newOwnerFee > 0, "invalid fee");
+        devFeePer = _newOwnerFee;
     }
 
-    function disableBaseToken(address _baseTokenAddress) public onlyOwner {
-        require(baseAdded[_baseTokenAddress], "not added");
-        require(baseValid[_baseTokenAddress], "not valid");
-        baseValid[_baseTokenAddress] = false;
-    }
-    function enableBasetoken(address _baseTokenAddress) public onlyOwner {
-        require(baseAdded[_baseTokenAddress], "not added");
-        require(!baseValid[_baseTokenAddress], "already enabled");
-        baseValid[_baseTokenAddress] = true;
-    }
-    function updateFunData(
-        uint256 _ownerFunCount,
-        string memory _newData
-    ) public {
-        IFunStorageInterface(funStorage).updateData(
-            msg.sender,
-            _ownerFunCount,
-            _newData
-        );
+    function setSpecialAffiliateData(address _affiliateAddrs, bool _status, uint256 _specialPer) public onlyOwner {
+        affiliateSpecial[_affiliateAddrs] = _status;
+        affiliateSpecialPer[_affiliateAddrs] = _specialPer;
     }
 
-    function updateFunPool(address _newfunPool) public onlyOwner {
+    function setInitReserveTARA(uint256 _newVal) public onlyOwner {
+        require(_newVal > 0, "invalid reserve");
+        initialReserveTARA = _newVal;
+    }
+
+    function setRouterValidity(address _router, bool _status) public onlyOwner {
+        routerValid[_router] = _status;
+    }
+
+    function setFunPool(address _newfunPool) public onlyOwner {
+        require(_newfunPool != address(0), "invalid pool");
         funPool = _newfunPool;
     }
 
-    function updateCreationFeeContract(
-        address _newCreationFeeContract
-    ) public onlyOwner {
-        creationFeeDistributionContract = _newCreationFeeContract;
+    function setFeeWallet(address _newFeeWallet) public onlyOwner {
+        require(_newFeeWallet != address(0), "invalid wallet");
+        feeWallet = _newFeeWallet;
     }
 
-    function updateStorageContract(
-        address _newStorageContract
-    ) public onlyOwner {
+    function setStorageContract(address _newStorageContract) public onlyOwner {
+        require(_newStorageContract != address(0), "invalid storage");
         funStorage = _newStorageContract;
     }
-    function updateEventContract(address _newEventContract) public onlyOwner {
+    function setEventContract(address _newEventContract) public onlyOwner {
         eventTracker = _newEventContract;
     }
 
-    function updateListThreshold(uint256 _newListThreshold) public onlyOwner {
+    function setListThreshold(uint256 _newListThreshold) public onlyOwner {
         listThreshold = _newListThreshold;
     }
-    function updateAntiSnipePer(uint256 _newAntiSnipePer) public onlyOwner {
+    function setAntiSnipePer(uint256 _newAntiSnipePer) public onlyOwner {
         antiSnipePer = _newAntiSnipePer;
     }
 
-    function updateAffiliatePerBaseTenK(uint256 _newAffPer) public onlyOwner {
+    function setAffiliatePer(uint256 _newAffPer) public onlyOwner {
+        require(_newAffPer > 0, "invalid affiliate");
         affiliatePer = _newAffPer;
     }
 
-    function updateteamFeeper(uint256 _newFeePer) public onlyOwner {
-        teamFeePer = _newFeePer;
-    }
-
     function emitRoyal(
-        address funContract,
         address tokenAddress,
-        address router,
-        address baseAddress,
         uint256 liquidityAmount,
         uint256 tokenAmount,
-        uint256 _time,
+        uint256 time,
         uint256 totalVolume
     ) public {
         require(msg.sender == funPool, "invalid caller");
         emit royal(
-            funContract,
             tokenAddress,
-            router,
-            baseAddress,
             liquidityAmount,
             tokenAmount,
-            _time,
+            time,
             totalVolume
         );
     }
-    // Emergency withdrawal by owner
+
     function emergencyWithdraw() public onlyOwner {
         uint256 balance = address(this).balance;
-        payable(owner()).transfer(balance);
+        (bool success, ) = payable(owner()).call{value: balance}("");
+        require(success, "Transfer failed.");
     }
 }

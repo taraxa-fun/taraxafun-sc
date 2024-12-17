@@ -2,7 +2,7 @@
 pragma solidity ^0.8.20;
 
 interface IFunPool {
-    function createFun(
+    function initFun(
         string[2] memory _name_symbol,
         uint256 _totalSupply,
         address _creator,

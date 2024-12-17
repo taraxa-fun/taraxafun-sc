@@ -66,23 +66,6 @@ contract FunStorage is Ownable {
         funCount++;
     }
 
-    function updateData(
-        address _funOwner,
-        uint256 _ownerFunIndex,
-        string memory _data
-    ) external onlyDeployer {
-        require(
-            _ownerFunIndex < ownerToFunCount[_funOwner],
-            "invalid owner fun count"
-        );
-        require(
-            funContracts[ownerIndexToStorageIndex[_funOwner][_ownerFunIndex]]
-                .funOwner == _funOwner,
-            "invalid caller"
-        );
-        funContracts[ownerIndexToStorageIndex[_funOwner][_ownerFunIndex]]
-            .data = _data;
-    }
     function getFunContract(
         uint256 index
     ) public view returns (FunDetails memory) {
