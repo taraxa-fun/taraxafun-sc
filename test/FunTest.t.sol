@@ -22,12 +22,12 @@ contract FunTest is Test {
     address user1;
     address user2;
 
-    address usdcETH = 0xcF81A5750F3c08B64eDaDD0D78Fb37a4aB5252c0;
-    address wethSEP = 0xfFf9976782d46CC05630D1f6eBAb18b2324d6B14;
-    address routerV3SEP = 0x3bFA4769FB09eefC5a80d6E87c3B9C650f7Ae48E;
+    address usdcETH = 0x337610d27c682E347C9cD60BD4b3b107C9d34dDd;
+    address wethSEP = 0x4200000000000000000000000000000000000006;
+    address routerV3SEP = 0x050E797f3625EC8785265e1d9BDd4799b97528A1;
 
     function setUp() public {
-        uint256 forkId = vm.createFork("https://ethereum-rpc.publicnode.com");
+        uint256 forkId = vm.createFork("https://base-sepolia-rpc.publicnode.com");
         vm.selectFork(forkId);
 
         owner = vm.addr(1);
@@ -35,9 +35,9 @@ contract FunTest is Test {
         user1 = vm.addr(3);
         user2 = vm.addr(4);
 
-        vm.deal(owner, 10 ether);
-        vm.deal(user1, 10 ether);
-        vm.deal(user2, 10 ether);
+        vm.deal(owner, 1000000000 ether);
+        vm.deal(user1, 1000000000 ether);
+        vm.deal(user2, 1000000000 ether);
 
         vm.startPrank(owner);
 
@@ -50,14 +50,12 @@ contract FunTest is Test {
             address(treasury),
             address(treasury), 
             usdcETH, 
-            address(eventTracker), 
-            0
+            address(eventTracker)
         );
 
         deployer = new FunDeployer(address(pool), address(treasury), address(funStorage), address(eventTracker));
 
-        deployer.addBaseToken(wethSEP);
-        deployer.addRouter(routerV3SEP);
+        deployer.setRouterValidity(routerV3SEP, true);
 
         pool.addDeployer(address(deployer));
         funStorage.addDeployer(address(deployer));
@@ -66,13 +64,12 @@ contract FunTest is Test {
     }
 
     function test_createToken() public {
-        deployer.CreateFun{value: 10000000}(
+        deployer.createFun{value: 10000000}(
             "TestToken", 
             "TT", 
             "Test Token DATA", 
             1000000000 ether,
             0, 
-            false, 
             0,
             0
         );
@@ -80,16 +77,17 @@ contract FunTest is Test {
         FunStorage.FunDetails memory funTokenDetail = funStorage.getFunContract(0);
 
         pool.getCurrentCap(funTokenDetail.funAddress);
+                                                                                
+        uint256 amountOut = pool.getAmountOutTokens(funTokenDetail.funAddress, 1 ether);
 
-        uint256 amountOut = pool.getAmountOutTokens(funTokenDetail.funAddress, .1 ether);
+        pool.buyTokens{value : 2 ether}(funTokenDetail.funAddress, amountOut, address(0x0));
 
-        /// pool.buyTokens{value : .1 ether}(funTokenDetail.funAddress, amountOut, address(0x0));
-
-
+        pool.getCurrentCap(funTokenDetail.funAddress);
+        
         /// uint256 amountOut2 = pool.getAmountOutETH(funTokenDetail.funAddress, IERC20(funTokenDetail.tokenAddress).balanceOf(address(owner)));
 
-        // pool.sellTokens(funTokenDetail.funAddress, IERC20(funTokenDetail.tokenAddress).balanceOf(address(owner)), amountOut2, address(0x0));
+        //pool.sellTokens(funTokenDetail.funAddress, IERC20(funTokenDetail.tokenAddress).balanceOf(address(owner)), amountOut2, address(0x0));
 
-        // owner.balance;
+        //owner.balance;
     }
 }
