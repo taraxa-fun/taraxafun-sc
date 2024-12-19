@@ -5,12 +5,15 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {IFunStorageInterface} from "./interfaces/IFunStorageInterface.sol";
 
 contract FunEventTracker is Ownable {
+
     address public funRegistry;
+
     mapping(address => bool) public funContractDeployer;
-    mapping(address => address) public funContractCreatedByDeployer;
     mapping(address => uint256) public funContractIndex;
+
     uint256 public buyEventCount;
     uint256 public sellEventCount;
+
     event buyCall(
         address indexed buyer,
         address indexed funContract,
@@ -19,6 +22,7 @@ contract FunEventTracker is Ownable {
         uint256 index,
         uint256 timestamp
     );
+    
     event sellCall(
         address indexed seller,
         address indexed funContract,
@@ -27,15 +31,17 @@ contract FunEventTracker is Ownable {
         uint256 index,
         uint256 timestamp
     );
+
     event tradeCall(
         address indexed caller,
         address indexed funContract,
-        uint256 outAmount,
         uint256 inAmount,
+        uint256 outAmount,
         uint256 index,
         uint256 timestamp,
         string tradeType
     );
+
     event funCreated(
         address indexed creator,
         address indexed funContract,
@@ -66,7 +72,7 @@ contract FunEventTracker is Ownable {
         address _buyer,
         address _funContract,
         uint256 _buyAmount,
-        uint256 _tokenRecieved
+        uint256 _tokenReceived
     ) public {
         require(funContractDeployer[msg.sender], "invalid fun contract");
         uint256 funIndex;
@@ -77,7 +83,7 @@ contract FunEventTracker is Ownable {
             _buyer,
             _funContract,
             _buyAmount,
-            _tokenRecieved,
+            _tokenReceived,
             funIndex,
             block.timestamp
         );
@@ -85,7 +91,7 @@ contract FunEventTracker is Ownable {
             _buyer,
             _funContract,
             _buyAmount,
-            _tokenRecieved,
+            _tokenReceived,
             funIndex,
             block.timestamp,
             "buy"
@@ -97,7 +103,7 @@ contract FunEventTracker is Ownable {
         address _seller,
         address _funContract,
         uint256 _sellAmount,
-        uint256 _nativeRecieved
+        uint256 _tokenReceived
     ) public {
         require(funContractDeployer[msg.sender], "invalid fun contract");
         uint256 funIndex;
@@ -108,7 +114,7 @@ contract FunEventTracker is Ownable {
             _seller,
             _funContract,
             _sellAmount,
-            _nativeRecieved,
+            _tokenReceived,
             funIndex,
             block.timestamp
         );
@@ -116,7 +122,7 @@ contract FunEventTracker is Ownable {
             _seller,
             _funContract,
             _sellAmount,
-            _nativeRecieved,
+            _tokenReceived,
             funIndex,
             block.timestamp,
             "sell"
@@ -136,7 +142,8 @@ contract FunEventTracker is Ownable {
         uint256 timestamp
     ) public {
         require(funContractDeployer[msg.sender], "not deployer");
-        funContractCreatedByDeployer[funContract] = msg.sender;
+        
+
         funContractIndex[funContract] = IFunStorageInterface(funRegistry)
             .getFunContractIndex(funContract);
         emit funCreated(
@@ -173,11 +180,7 @@ contract FunEventTracker is Ownable {
         );
     }
 
-    function addDeployer(address _newDeployer) public onlyOwner {
-        funContractDeployer[_newDeployer] = true;
-    }
-
-    function removeDeployer(address _deployer) public onlyOwner {
-        funContractDeployer[_deployer] = false;
+    function setDeployer(address _newDeployer, bool _value) public onlyOwner {
+        funContractDeployer[_newDeployer] = _value;
     }
 }
