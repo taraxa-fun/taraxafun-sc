@@ -22,7 +22,7 @@ contract FunEventTracker is Ownable {
         uint256 index,
         uint256 timestamp
     );
-    
+
     event sellCall(
         address indexed seller,
         address indexed funContract,
@@ -180,7 +180,11 @@ contract FunEventTracker is Ownable {
         );
     }
 
-    function setDeployer(address _newDeployer, bool _value) public onlyOwner {
-        funContractDeployer[_newDeployer] = _value;
+    function addDeployer(address _newDeployer) public onlyOwner {
+        funContractDeployer[_newDeployer] = true;
+    }
+
+    function removeDeployer(address _deployer) public onlyOwner {
+        funContractDeployer[_deployer] = false;
     }
 }
