@@ -11,7 +11,7 @@ import {Multicall3} from "../src/Multicall3.sol";
 import {SimpleERC20} from "../src/SimpleERC20.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
-/// forge script script/Deploy.s.sol --rpc-url https://bsc-testnet.public.blastapi.io --broadcast --legacy
+/// forge script script/Deploy.s.sol --rpc-url https://base-sepolia-rpc.publicnode.com --broadcast --legacy
 
 //// NonFUNGIBLEPOSITION = 0x1C5A295E9860d127D8A3E7af138Bb945c4377ae7
 //// WTARA = 0x5d0Fa4C5668E5809c83c95A7CeF3a9dd7C68d4fE

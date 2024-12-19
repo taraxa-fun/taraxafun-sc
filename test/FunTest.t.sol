@@ -78,9 +78,9 @@ contract FunTest is Test {
 
         pool.getCurrentCap(funTokenDetail.funAddress);
                                                                                 
-        uint256 amountOut = pool.getAmountOutTokens(funTokenDetail.funAddress, 1 ether);
+        uint256 amountOut = pool.getAmountOutTokens(funTokenDetail.funAddress, 0.00001 ether);
 
-        pool.buyTokens{value : 2 ether}(funTokenDetail.funAddress, amountOut, address(0x0));
+        pool.buyTokens{value : 0.0001 ether}(funTokenDetail.funAddress, amountOut, address(0x0));
 
         pool.getCurrentCap(funTokenDetail.funAddress);
         
