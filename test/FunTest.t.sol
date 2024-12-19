@@ -2,9 +2,9 @@
 pragma solidity ^0.8.13;
 
 import {Test, console} from "forge-std/Test.sol";
-import {FunDeployer} from "../src/Deployer.sol";
-import {FunEventTracker} from "../src/EventTracker.sol";
-import {FunPool} from "../src/Pool.sol";
+import {FunDeployer} from "../src/FunDeployer.sol";
+import {FunEventTracker} from "../src/FunEventTracker.sol";
+import {FunPool} from "../src/FunPool.sol";
 import {FunStorage} from "../src/Storage.sol";
 import {SimpleERC20} from "../src/SimpleERC20.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -54,8 +54,6 @@ contract FunTest is Test {
         );
 
         deployer = new FunDeployer(address(pool), address(treasury), address(funStorage), address(eventTracker));
-
-        deployer.setRouterValidity(routerV3SEP, true);
 
         pool.addDeployer(address(deployer));
         funStorage.addDeployer(address(deployer));

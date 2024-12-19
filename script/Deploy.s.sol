@@ -3,19 +3,15 @@ pragma solidity ^0.8.24;
 
 import {Script, console} from "forge-std/Script.sol";
 
-import {FunDeployer} from "../src/Deployer.sol";
-import {FunEventTracker} from "../src/EventTracker.sol";
-import {FunPool} from "../src/Pool.sol";
+import {FunDeployer} from "../src/FunDeployer.sol";
+import {FunEventTracker} from "../src/FunEventTracker.sol";
+import {FunPool} from "../src/FunPool.sol";
 import {FunStorage} from "../src/Storage.sol";
 import {Multicall3} from "../src/Multicall3.sol";
 import {SimpleERC20} from "../src/SimpleERC20.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 /// forge script script/Deploy.s.sol --rpc-url https://base-sepolia-rpc.publicnode.com --broadcast --legacy
-
-//// NonFUNGIBLEPOSITION = 0x1C5A295E9860d127D8A3E7af138Bb945c4377ae7
-//// WTARA = 0x5d0Fa4C5668E5809c83c95A7CeF3a9dd7C68d4fE
-/// V3 FACTORY = 0x5EFAc029721023DD6859AFc8300d536a2d6d4c82
 
 contract DeployTARAXAFUN is Script {
     
@@ -57,8 +53,6 @@ contract DeployTARAXAFUN is Script {
 
         /// multicall = new Multicall3();
 
-        deployer.setRouterValidity(routerV3TESTNET, true);
-
         pool.addDeployer(address(deployer));
         funStorage.addDeployer(address(deployer));
         eventTracker.addDeployer(address(deployer));
@@ -70,7 +64,7 @@ contract DeployTARAXAFUN is Script {
         console.log("Deployed FunPool at address: ", address(pool));
         console.log("Deployed FunStorage at address: ", address(funStorage));
         console.log("Deployed FunEventTracker at address: ", address(eventTracker));
-        console.log("Deployed Multicall3 at address: ", address(multicall));
+        // console.log("Deployed Multicall3 at address: ", address(multicall));
     }
 }
 
