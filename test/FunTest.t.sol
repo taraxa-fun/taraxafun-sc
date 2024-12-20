@@ -82,10 +82,10 @@ contract FunTest is Test {
 
         pool.getCurrentCap(funTokenDetail.funAddress);
         
-        /// uint256 amountOut2 = pool.getAmountOutETH(funTokenDetail.funAddress, IERC20(funTokenDetail.tokenAddress).balanceOf(address(owner)));
+        uint256 amountOut2 = pool.getAmountOutTARA(funTokenDetail.funAddress, IERC20(funTokenDetail.tokenAddress).balanceOf(address(owner)));
 
-        //pool.sellTokens(funTokenDetail.funAddress, IERC20(funTokenDetail.tokenAddress).balanceOf(address(owner)), amountOut2, address(0x0));
+        pool.sellTokens(funTokenDetail.funAddress, IERC20(funTokenDetail.tokenAddress).balanceOf(address(owner)), amountOut2, address(0x0));
 
-        //owner.balance;
+        owner.balance;
     }
 }
