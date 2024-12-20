@@ -11,7 +11,7 @@ import {Multicall3} from "../src/Multicall3.sol";
 import {SimpleERC20} from "../src/SimpleERC20.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
-/// forge script script/Deploy.s.sol --rpc-url https://base-sepolia-rpc.publicnode.com --broadcast --legacy
+/// forge script script/FunDeploy.s.sol --rpc-url https://base-sepolia-rpc.publicnode.com --broadcast --legacy
 
 contract DeployTARAXAFUN is Script {
     
