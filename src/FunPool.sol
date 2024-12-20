@@ -27,7 +27,7 @@ contract FunPool is Ownable, ReentrancyGuard {
         uint256 reserveTARA;
         uint256 volume;
         uint256 listThreshold;
-        uint256 initialReserveEth;
+        uint256 initialReserveTARA;
         uint256 maxBuyPerWallet;
         bool tradeActive;
         bool royalemitted;
@@ -96,7 +96,7 @@ contract FunPool is Ownable, ReentrancyGuard {
         string[2] memory _name_symbol,
         uint256 _totalSupply,
         address _creator,
-        uint256[2] memory listThreshold_initReserveEth,
+        uint256[2] memory listThreshold_initReserveTARA,
         uint256 _maxBuyPerWallet
     ) public payable returns (address) {
         require(allowedDeployers[msg.sender], "not deployer");
@@ -118,9 +118,9 @@ contract FunPool is Ownable, ReentrancyGuard {
 
         pool.pool.tradeActive = true;
         pool.pool.reserveTokens += _totalSupply;
-        pool.pool.reserveTARA += (listThreshold_initReserveEth[1] + msg.value);
-        pool.pool.listThreshold = listThreshold_initReserveEth[0];
-        pool.pool.initialReserveEth = listThreshold_initReserveEth[1];
+        pool.pool.reserveTARA += (listThreshold_initReserveTARA[1] + msg.value);
+        pool.pool.listThreshold = listThreshold_initReserveTARA[0];
+        pool.pool.initialReserveTARA = listThreshold_initReserveTARA[1];
         pool.pool.maxBuyPerWallet = _maxBuyPerWallet;
 
         // add the fun data for the fun token
@@ -305,7 +305,7 @@ contract FunPool is Ownable, ReentrancyGuard {
         if (currentMarketCap >= listThresholdCap) {
             token.pool.tradeActive = false;
             IFunToken(funToken).initiateDex();
-            token.pool.reserveTARA -= token.pool.initialReserveEth;
+            token.pool.reserveTARA -= token.pool.initialReserveTARA;
 
             _addLiquidityV3(funToken, IERC20(funToken).balanceOf(address(this)), token.pool.reserveTARA);
 
