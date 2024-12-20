@@ -78,6 +78,17 @@ contract FunPool is Ownable, ReentrancyGuard {
         uint256 totalVolume
     );
 
+    event tradeCall(
+        address indexed caller,
+        address indexed funContract,
+        uint256 inAmount,
+        uint256 outAmount,
+        uint256 reserveTARA,
+        uint256 reserveTokens,
+        uint256 timestamp,
+        string tradeType
+    );
+
     constructor(
         address _implementation,
         address _feeContract,
@@ -250,6 +261,17 @@ contract FunPool is Ownable, ReentrancyGuard {
         (success,) = msg.sender.call{value: taraAmount - taraAmountFee}("");
         require(success, "seller TARA transfer failed");
 
+        emit tradeCall(
+            msg.sender,
+            funToken,
+            tokenToSell,
+            taraAmount,
+            token.pool.reserveTARA,
+            token.pool.reserveTokens,
+            block.timestamp,
+            "sell"
+        );
+
         IFunEventTracker(eventTracker).sellEvent(msg.sender, funToken, tokenToSell, taraAmount);
 
         return (true, true);
@@ -283,6 +305,17 @@ contract FunPool is Ownable, ReentrancyGuard {
         require(success, "fee TARA transfer failed");
 
         IERC20(funToken).transfer(msg.sender, tokenAmount);
+
+        emit tradeCall(
+            msg.sender,
+            funToken,
+            taraAmount,
+            tokenAmount,
+            token.pool.reserveTARA,
+            token.pool.reserveTokens,
+            block.timestamp,
+            "buy"
+        );
         
         IFunEventTracker(eventTracker).buyEvent(
             msg.sender, 
