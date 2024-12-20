@@ -68,37 +68,6 @@ contract FunPool is Ownable, ReentrancyGuard {
 
     event LiquidityAdded(address indexed provider, uint256 tokenAmount, uint256 taraAmount);
 
-    event sold(
-        address indexed user,
-        uint256 amountIn,
-        uint256 amountOut,
-        uint256 _time,
-        uint256 reserveEth,
-        uint256 reserveTokens,
-        uint256 totalVolume
-    );
-
-    event bought(
-        address indexed user,
-        uint256 amountIn,
-        uint256 amountOut,
-        uint256 _time,
-        uint256 reserveEth,
-        uint256 reserveTokens,
-        uint256 totalVolume
-    );
-
-    event funTradeCall(
-        address indexed user,
-        uint256 amountIn,
-        uint256 amountOut,
-        uint256 _time,
-        uint256 reserveEth,
-        uint256 reserveTokens,
-        string tradeType,
-        uint256 totalVolume
-    );
-
     event listed(
         address indexed tokenAddress,
         address indexed router,
@@ -281,25 +250,6 @@ contract FunPool is Ownable, ReentrancyGuard {
         (success,) = msg.sender.call{value: taraAmount - taraAmountFee}("");
         require(success, "seller TARA transfer failed");
 
-        emit sold(
-            msg.sender,
-            tokenAmount,
-            taraAmount,
-            block.timestamp,
-            token.pool.reserveTARA,
-            token.pool.reserveTokens,
-            token.pool.volume
-        );
-        emit funTradeCall(
-            msg.sender,
-            tokenAmount,
-            taraAmount,
-            block.timestamp,
-            token.pool.reserveTARA,
-            token.pool.reserveTokens,
-            "sell",
-            token.pool.volume
-        );
         IFunEventTracker(eventTracker).sellEvent(msg.sender, funToken, tokenToSell, taraAmount);
 
         return (true, true);
@@ -333,25 +283,6 @@ contract FunPool is Ownable, ReentrancyGuard {
         require(success, "fee TARA transfer failed");
 
         IERC20(funToken).transfer(msg.sender, tokenAmount);
-        emit bought(
-            msg.sender,
-            msg.value,
-            tokenAmount,
-            block.timestamp,
-            token.pool.reserveTARA,
-            token.pool.reserveTokens,
-            token.pool.volume
-        );
-        emit funTradeCall(
-            msg.sender,
-            msg.value,
-            tokenAmount,
-            block.timestamp,
-            token.pool.reserveTARA,
-            token.pool.reserveTokens,
-            "buy",
-            token.pool.volume
-        );
         
         IFunEventTracker(eventTracker).buyEvent(
             msg.sender, 

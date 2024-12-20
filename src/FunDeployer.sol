@@ -9,6 +9,7 @@ import {IFunStorageInterface} from "./interfaces/IFunStorageInterface.sol";
 import {IFunEventTracker} from "./interfaces/IFunEventTracker.sol";
 
 contract FunDeployer is Ownable {
+    
     event funCreated(
         address indexed creator,
         address indexed funContract,

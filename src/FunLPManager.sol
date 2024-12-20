@@ -31,12 +31,10 @@ contract FunLPManager is Ownable, IERC721Receiver {
     );
 
     uint256 public constant BASIS_POINTS = 10000;
+    uint256 public feePer;
 
     address public nonfungiblePositionManager;
-
     address public funPool;
-
-    uint256 public feePer;
 
     mapping(uint256 => LPPosition) public tokenIdToLPPosition;
 
