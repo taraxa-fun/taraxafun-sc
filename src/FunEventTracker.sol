@@ -32,16 +32,6 @@ contract FunEventTracker is Ownable {
         uint256 timestamp
     );
 
-    event tradeCall(
-        address indexed caller,
-        address indexed funContract,
-        uint256 inAmount,
-        uint256 outAmount,
-        uint256 index,
-        uint256 timestamp,
-        string tradeType
-    );
-
     event funCreated(
         address indexed creator,
         address indexed funContract,
@@ -87,15 +77,7 @@ contract FunEventTracker is Ownable {
             funIndex,
             block.timestamp
         );
-        emit tradeCall(
-            _buyer,
-            _funContract,
-            _buyAmount,
-            _tokenReceived,
-            funIndex,
-            block.timestamp,
-            "buy"
-        );
+
         buyEventCount++;
     }
 
@@ -117,15 +99,6 @@ contract FunEventTracker is Ownable {
             _tokenReceived,
             funIndex,
             block.timestamp
-        );
-        emit tradeCall(
-            _seller,
-            _funContract,
-            _sellAmount,
-            _tokenReceived,
-            funIndex,
-            block.timestamp,
-            "sell"
         );
         sellEventCount++;
     }
