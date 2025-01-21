@@ -25,10 +25,6 @@ contract DeployTARAXAFUN is Script {
     address owner;
     address treasury;
 
-    address usdtTESTNET = 0x000000000000000000000000000000000000dEaD;
-    address WETHTESTNET = 0x4200000000000000000000000000000000000006;
-    address routerV3TESTNET = 0x050E797f3625EC8785265e1d9BDd4799b97528A1;
-
     function run() external {
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
         owner = vm.addr(deployerPrivateKey);
@@ -44,8 +40,6 @@ contract DeployTARAXAFUN is Script {
         pool = new FunPool(
             address(implementation), 
             address(treasury),
-            address(treasury), 
-            usdtTESTNET, 
             address(eventTracker) 
         );
 

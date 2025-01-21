@@ -8,6 +8,7 @@ import {FunPool} from "../src/FunPool.sol";
 import {FunStorage} from "../src/Storage.sol";
 import {SimpleERC20} from "../src/SimpleERC20.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {FunLPManager} from "../src/FunLPManager.sol";
 
 
 contract FunTest is Test {
@@ -16,18 +17,15 @@ contract FunTest is Test {
     FunPool pool;
     FunStorage funStorage;
     SimpleERC20 implementation;
+    FunLPManager lpManager;
 
     address owner;
     address treasury;
     address user1;
     address user2;
 
-    address usdcETH = 0x337610d27c682E347C9cD60BD4b3b107C9d34dDd;
-    address wethSEP = 0x4200000000000000000000000000000000000006;
-    address routerV3SEP = 0x050E797f3625EC8785265e1d9BDd4799b97528A1;
-
     function setUp() public {
-        uint256 forkId = vm.createFork("https://base-sepolia-rpc.publicnode.com");
+        uint256 forkId = vm.createFork("https://rpc.mainnet.taraxa.io");
         vm.selectFork(forkId);
 
         owner = vm.addr(1);
@@ -44,18 +42,20 @@ contract FunTest is Test {
         implementation = new SimpleERC20();
         funStorage = new FunStorage();
         eventTracker = new FunEventTracker(address(funStorage));
+        
 
         pool = new FunPool(
             address(implementation), 
-            address(treasury),
             address(treasury), 
-            usdcETH, 
             address(eventTracker)
         );
 
         deployer = new FunDeployer(address(pool), address(treasury), address(funStorage), address(eventTracker));
 
+        lpManager = new FunLPManager(address(pool), 1000);
+
         pool.addDeployer(address(deployer));
+        pool.setLPManager(address(lpManager));
         funStorage.addDeployer(address(deployer));
         eventTracker.addDeployer(address(deployer));
         eventTracker.addDeployer(address(pool));
@@ -63,9 +63,9 @@ contract FunTest is Test {
 
     function test_createToken() public {
         deployer.createFun{value: 10000000}(
-            "TestToken", 
+            "Test", 
             "TT", 
-            "Test Token DATA", 
+            "Test Token", 
             1000000000 ether,
             0, 
             0,
@@ -73,19 +73,12 @@ contract FunTest is Test {
         );
 
         FunStorage.FunDetails memory funTokenDetail = funStorage.getFunContract(0);
-
-        pool.getCurrentCap(funTokenDetail.funAddress);
                                                                                 
-        uint256 amountOut = pool.getAmountOutTokens(funTokenDetail.funAddress, 0.00001 ether);
+        uint256 amountOut = pool.getAmountOutTokens(funTokenDetail.funAddress, 300 ether);
 
-        pool.buyTokens{value : 0.0001 ether}(funTokenDetail.funAddress, amountOut, address(0x0));
+        pool.buyTokens{value : 500 ether}(funTokenDetail.funAddress, amountOut, address(0x0));
 
         pool.getCurrentCap(funTokenDetail.funAddress);
-        
-        uint256 amountOut2 = pool.getAmountOutTARA(funTokenDetail.funAddress, IERC20(funTokenDetail.tokenAddress).balanceOf(address(owner)));
 
-        pool.sellTokens(funTokenDetail.funAddress, IERC20(funTokenDetail.tokenAddress).balanceOf(address(owner)), amountOut2, address(0x0));
-
-        owner.balance;
     }
 }
