@@ -9,7 +9,7 @@ import {IFunStorageInterface} from "./interfaces/IFunStorageInterface.sol";
 import {IFunEventTracker} from "./interfaces/IFunEventTracker.sol";
 
 contract FunDeployer is Ownable {
-    
+
     event funCreated(
         address indexed creator,
         address indexed funContract,
@@ -23,7 +23,11 @@ contract FunDeployer is Ownable {
     );
 
     event royal(
-        address indexed tokenAddress, uint256 liquidityAmount, uint256 tokenAmount, uint256 time, uint256 totalVolume
+        address indexed tokenAddress, 
+        uint256 liquidityAmount,
+        uint256 tokenAmount, 
+        uint256 time, 
+        uint256 totalVolume
     );
 
     address public feeWallet;
@@ -42,9 +46,9 @@ contract FunDeployer is Ownable {
     // base of 10000 -> 100 equals 1%
     uint256 public tradingFeePer = 100; 
     // listing marketcap in $USD
-    uint256 public listThreshold = 35000; 
+    uint256 public listThreshold = 10; 
     /// virtual liquidity
-    uint256 public initialReserveTARA = 100_000 ether; 
+    uint256 public initialReserveTARA = 100 ether; 
 
     mapping(address => uint256) public affiliateSpecialPer;
     mapping(address => bool) public affiliateSpecial;

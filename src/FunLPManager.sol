@@ -16,43 +16,42 @@ contract FunLPManager is Ownable, IERC721Receiver {
         uint256 token1Collected;
     }
 
-    event positionDeposited(
+    uint256 public constant BASIS_POINTS = 10000;
+    uint256 public feePer;
+
+    address public positionManager = 0x1C5A295E9860d127D8A3E7af138Bb945c4377ae7;
+
+    address public funPool;
+
+    mapping(uint256 => LPPosition) public tokenIdToLPPosition;
+    mapping(address => uint256[])  public devToTokenIds;
+
+    event PositionDeposited(
         uint256 tokenId, 
         address dev, 
         uint256 timestamp
     );
 
-    event feesCollected(
+    event FeesCollected(
         uint256 tokenId, 
         address dev,
-        uint256 token0Amount,
-        uint256 token1Amount,
+        address token,
+        uint256 amount,
         uint256 timestamp
     );
 
-    uint256 public constant BASIS_POINTS = 10000;
-    uint256 public feePer;
-
-    address public nonfungiblePositionManager;
-    address public funPool;
-
-    mapping(uint256 => LPPosition) public tokenIdToLPPosition;
-
     constructor(
-        address _nonfungiblePositionManager, 
         address _funPool,
         uint256 _feePer
-        ) Ownable(msg.sender) {
-        nonfungiblePositionManager = _nonfungiblePositionManager;
+    ) Ownable(msg.sender) {
         funPool = _funPool;
-
         feePer = _feePer;
     }
 
     function depositNFTPosition(uint256 _tokenId, address _dev) external {
         require(msg.sender == funPool, "LPManager: Only FunPool can call this function");
 
-        IERC721(nonfungiblePositionManager).transferFrom(funPool, address(this), _tokenId);
+        IERC721(positionManager).transferFrom(funPool, address(this), _tokenId);
 
         LPPosition memory lpPosition = LPPosition({
             dev: _dev,
@@ -61,40 +60,42 @@ contract FunLPManager is Ownable, IERC721Receiver {
         });
 
         tokenIdToLPPosition[_tokenId] = lpPosition;
+        devToTokenIds[_dev].push(_tokenId);
 
-        emit positionDeposited(_tokenId, _dev, block.timestamp);
+        emit PositionDeposited(_tokenId, _dev, block.timestamp);
     }
 
     function collectFees(uint256 _tokenId) external {
 
-        require(IERC721(nonfungiblePositionManager).ownerOf(_tokenId) == address(this), "LPManager: LP Token not owned by LPManager");
-
         LPPosition storage lpPosition = tokenIdToLPPosition[_tokenId];
-        
+
+        require(IERC721(positionManager).ownerOf(_tokenId) == address(this), "LPManager: LP Token not owned by LPManager");
         require((msg.sender == lpPosition.dev) || (msg.sender == owner()), "LPManager: Only Dev or Owner can collect fees");
 
-        INonfungiblePositionManager(nonfungiblePositionManager).collect(INonfungiblePositionManager.CollectParams({
+        (uint256 amount0, uint256 amount1) = INonfungiblePositionManager(positionManager).collect(INonfungiblePositionManager.CollectParams({
             tokenId: _tokenId,
             recipient: address(this),
             amount0Max: type(uint128).max,
             amount1Max: type(uint128).max
         }));
 
-        (,,address token0, address token1,,,,,,,,) = INonfungiblePositionManager(nonfungiblePositionManager).positions(_tokenId);
+        (,,address token0, address token1,,,,,,,,) = INonfungiblePositionManager(positionManager).positions(_tokenId);
 
-        uint256 token0Balance = IERC20(token0).balanceOf(address(this));
-        uint256 token1Balance = IERC20(token1).balanceOf(address(this));
+        if (amount0 > 0) {
+            uint256 feeAmount0 = (amount0 * feePer) / BASIS_POINTS;
+            IERC20(token0).transfer(owner(), feeAmount0);
+            IERC20(token0).transfer(lpPosition.dev, amount0 - feeAmount0);
 
-        uint256 feeAmount0 = (token0Balance * feePer) / BASIS_POINTS;
-        uint256 feeAmount1 = (token1Balance * feePer) / BASIS_POINTS;
+            emit FeesCollected(_tokenId, lpPosition.dev, token0, amount0, block.timestamp);
+        }
 
-        IERC20(token0).transfer(owner(), feeAmount0);
-        IERC20(token1).transfer(owner(), feeAmount1);
+        if (amount1 > 0) {
+            uint256 feeAmount1 = (amount1 * feePer) / BASIS_POINTS;
+            IERC20(token1).transfer(owner(), feeAmount1);
+            IERC20(token1).transfer(lpPosition.dev, amount1 - feeAmount1);
 
-        IERC20(token0).transfer(lpPosition.dev, token0Balance - feeAmount0);
-        IERC20(token1).transfer(lpPosition.dev, token1Balance - feeAmount1);
-
-        emit feesCollected(_tokenId, lpPosition.dev, token0Balance, token1Balance, block.timestamp);
+            emit FeesCollected(_tokenId, lpPosition.dev, token1, amount1, block.timestamp);
+        }
     }
 
     function onERC721Received(

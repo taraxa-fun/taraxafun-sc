@@ -8,11 +8,11 @@ contract FunEventTracker is Ownable {
 
     address public funRegistry;
 
-    mapping(address => bool) public funContractDeployer;
-    mapping(address => uint256) public funContractIndex;
-
     uint256 public buyEventCount;
     uint256 public sellEventCount;
+
+    mapping(address => bool) public funContractDeployer;
+    mapping(address => uint256) public funContractIndex;
 
     event buyCall(
         address indexed buyer,
@@ -65,10 +65,11 @@ contract FunEventTracker is Ownable {
         uint256 _tokenReceived
     ) public {
         require(funContractDeployer[msg.sender], "invalid fun contract");
-        uint256 funIndex;
-        funIndex = IFunStorageInterface(funRegistry).getFunContractIndex(
+
+        uint256 funIndex = IFunStorageInterface(funRegistry).getFunContractIndex(
             _funContract
         );
+        
         emit buyCall(
             _buyer,
             _funContract,
@@ -87,11 +88,13 @@ contract FunEventTracker is Ownable {
         uint256 _sellAmount,
         uint256 _tokenReceived
     ) public {
+        
         require(funContractDeployer[msg.sender], "invalid fun contract");
-        uint256 funIndex;
-        funIndex = IFunStorageInterface(funRegistry).getFunContractIndex(
+
+        uint256 funIndex = IFunStorageInterface(funRegistry).getFunContractIndex(
             _funContract
         );
+
         emit sellCall(
             _seller,
             _funContract,

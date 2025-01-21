@@ -4,6 +4,7 @@ pragma solidity ^0.8.20;
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
 contract FunStorage is Ownable {
+
     struct FunDetails {
         address funAddress;
         address tokenAddress;
@@ -17,19 +18,16 @@ contract FunStorage is Ownable {
     }
 
     FunDetails[] public funContracts;
+    
+    uint256 public funCount;
+
     mapping(address => bool) public deployer;
     mapping(address => uint256) public funContractToIndex;
     mapping(address => uint256) public tokenContractToIndex;
     mapping(address => uint256) public ownerToFunCount;
-    mapping(address => mapping(uint256 => uint256))
-        public ownerIndexToStorageIndex;
+    mapping(address => mapping(uint256 => uint256)) public ownerIndexToStorageIndex;
     mapping(address => address) public funContractToOwner;
     mapping(address => uint256) public funContractToOwnerCount;
-    uint256 public funCount;
-    modifier onlyDeployer() {
-        require(deployer[msg.sender], "not deployer");
-        _;
-    }
 
     constructor() Ownable(msg.sender) {}
 
@@ -42,7 +40,10 @@ contract FunStorage is Ownable {
         string memory _data,
         uint256 _totalSupply,
         uint256 _initialLiquidity
-    ) external onlyDeployer {
+    ) external {
+
+        require(deployer[msg.sender], "not deployer");
+
         FunDetails memory newFun = FunDetails({
             funAddress: _funAddress,
             tokenAddress: _tokenAddress,
@@ -54,14 +55,13 @@ contract FunStorage is Ownable {
             initialLiquidity: _initialLiquidity,
             createdOn: block.timestamp
         });
+
         funContracts.push(newFun);
         funContractToIndex[_funAddress] = funContracts.length - 1;
         tokenContractToIndex[_tokenAddress] = funContracts.length - 1;
         funContractToOwner[_funAddress] = _funOwner;
-        funContractToOwnerCount[_funAddress] = ownerToFunCount[_funOwner]; // new addition for deployment after base
-        ownerIndexToStorageIndex[_funOwner][
-            ownerToFunCount[_funOwner]
-        ] = funCount;
+        funContractToOwnerCount[_funAddress] = ownerToFunCount[_funOwner]; 
+        ownerIndexToStorageIndex[_funOwner][ownerToFunCount[_funOwner]] = funCount;
         ownerToFunCount[_funOwner]++;
         funCount++;
     }
@@ -71,11 +71,13 @@ contract FunStorage is Ownable {
     ) public view returns (FunDetails memory) {
         return funContracts[index];
     }
+
     function getFunContractIndex(
         address _funContract
     ) public view returns (uint256) {
         return funContractToIndex[_funContract];
     }
+
     function getTotalContracts() public view returns (uint) {
         return funContracts.length;
     }
@@ -90,11 +92,12 @@ contract FunStorage is Ownable {
         require(!deployer[_deployer], "already added");
         deployer[_deployer] = true;
     }
+
     function removeDeployer(address _deployer) public onlyOwner {
         require(deployer[_deployer], "not deployer");
         deployer[_deployer] = false;
     }
-    // Emergency withdrawal by owner
+
     function emergencyWithdraw() public onlyOwner {
         uint256 balance = address(this).balance;
         payable(owner()).transfer(balance);
