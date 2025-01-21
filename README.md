@@ -11,7 +11,7 @@ Taraxa.fun smart contracts enable users to deploy their own tokens in one click 
 * `FunEventTracker.sol`: Trading logs for backend tracking
 * `SimpleERC20.sol`: ERC-20 implementation for token deployment
 * `FunStorage.sol`: Token information storage contract
-* `FunLPManager.sol`: UniswapV3 LP management and fee claims
+* `FunLPManager.sol`: UniswapV3 LP lock and fee claims
 
 ## Deployed Addresses
 
@@ -62,7 +62,7 @@ forge script script/FunDeploy.s.sol --rpc-url <network-rpc> --broadcast --legacy
 
 ### Scripts
 * `script/FunDeploy.s.sol`: Deploy all contracts
-* `test/FunTest.t.sol`: Contract test suite
+* `test/FunTest.t.sol`: Contracts tests suite
 
 ## Acknowledgments
 
