@@ -10,7 +10,6 @@ import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 
 import {Clones} from "./libraries/Clones.sol";
 import {IFunDeployer} from "./interfaces/IFunDeployer.sol";
-import {IFunEventTracker} from "./interfaces/IFunEventTracker.sol";
 import {IFunLPManager} from "./interfaces/IFunLPManager.sol";
 import {IWETH} from "./interfaces/IWETH.sol";
 import {IFunToken} from "./interfaces/IFunToken.sol";
@@ -19,8 +18,6 @@ import {IChainlinkAggregator} from "./interfaces/IChainlinkAggregator.sol";
 import {INonfungiblePositionManager} from "@v3-periphery/contracts/interfaces/INonfungiblePositionManager.sol";
 import {IUniswapV3Factory} from "@v3-core/contracts/interfaces/IUniswapV3Factory.sol";
 import {IUniswapV3Pool} from "@v3-core/contracts/interfaces/IUniswapV3Pool.sol";
-
-import {console} from "forge-std/console.sol";
 
 contract FunPool is Ownable, ReentrancyGuard {
     using FixedPointMathLib for uint256;
@@ -58,10 +55,8 @@ contract FunPool is Ownable, ReentrancyGuard {
     address public oracle          = 0xe03e2C41c8c044192b3CE2d7AFe49370551c7f80;
 
     address public implementation;
-    address public feeContract;
+    address public feeWallet;
     address public LPManager;
-    address public eventTracker;
- 
 
     // deployer allowed to create fun tokens
     mapping(address => bool) public allowedDeployers;
@@ -69,8 +64,6 @@ contract FunPool is Ownable, ReentrancyGuard {
     mapping(address => address[]) public userFunTokens;
     // fun token => fun token details
     mapping(address => FunTokenPool) public tokenPools;
-    /// represents the tick spacing for each fee tier
-    mapping(uint24 => int256) public tickSpacing;
 
     event LiquidityAdded(address indexed provider, uint256 tokenAmount, uint256 taraAmount);
 
@@ -97,13 +90,11 @@ contract FunPool is Ownable, ReentrancyGuard {
 
     constructor(
         address _implementation,
-        address _feeContract,
-        address _eventTracker
+        address _feeWallet
     ) Ownable(msg.sender) {
 
         implementation = _implementation;
-        feeContract    = _feeContract;
-        eventTracker   = _eventTracker;
+        feeWallet    = _feeWallet;
     }
 
     function initFun(
@@ -230,7 +221,7 @@ contract FunPool is Ownable, ReentrancyGuard {
         token.pool.volume += taraAmount;
 
         IERC20(_funToken).transferFrom(msg.sender, address(this), tokenToSell);
-        (bool success,) = feeContract.call{value: taraAmountFee - taraAmountOwnerFee - affiliateFee}("");
+        (bool success,) = feeWallet.call{value: taraAmountFee - taraAmountOwnerFee - affiliateFee}("");
         require(success, "fee TARA transfer failed");
 
         (success,) = _affiliate.call{value: affiliateFee}(""); 
@@ -243,7 +234,7 @@ contract FunPool is Ownable, ReentrancyGuard {
         require(success, "seller TARA transfer failed");
 
         emit tradeCall(
-            msg.sender,
+            tx.origin,
             _funToken,
             tokenToSell,
             taraAmount,
@@ -252,8 +243,6 @@ contract FunPool is Ownable, ReentrancyGuard {
             block.timestamp,
             "sell"
         );
-
-        IFunEventTracker(eventTracker).sellEvent(msg.sender, _funToken, tokenToSell, taraAmount);
     }
 
     function buyTokens(address _funToken, uint256 _minTokens, address _affiliate) public payable nonReentrant {
@@ -274,7 +263,7 @@ contract FunPool is Ownable, ReentrancyGuard {
         token.pool.reserveTokens -= tokenAmount;
         token.pool.volume += taraAmount;
 
-        (bool success,) = feeContract.call{value: taraAmountFee - taraAmountOwnerFee - affiliateFee}("");
+        (bool success,) = feeWallet.call{value: taraAmountFee - taraAmountOwnerFee - affiliateFee}("");
         require(success, "fee TARA transfer failed");
 
         (success,) = _affiliate.call{value: affiliateFee}("");
@@ -286,7 +275,7 @@ contract FunPool is Ownable, ReentrancyGuard {
         IERC20(_funToken).transfer(msg.sender, tokenAmount);
 
         emit tradeCall(
-            msg.sender,
+            tx.origin,
             _funToken,
             taraAmount,
             tokenAmount,
@@ -294,13 +283,6 @@ contract FunPool is Ownable, ReentrancyGuard {
             token.pool.reserveTokens,
             block.timestamp,
             "buy"
-        );
-        
-        IFunEventTracker(eventTracker).buyEvent(
-            msg.sender, 
-            _funToken, 
-            msg.value, 
-            tokenAmount
         );
 
         uint256 currentMarketCap = getCurrentCap(_funToken);
@@ -343,9 +325,6 @@ contract FunPool is Ownable, ReentrancyGuard {
         address token0 = _funToken < wtara ? _funToken : wtara;
         address token1 = _funToken < wtara ? wtara : _funToken;
 
-        console.log("token0: %s", token0);
-        console.log("token1: %s", token1);
-
         uint256 price_numerator;
         uint256 price_denominator;
 
@@ -356,9 +335,6 @@ contract FunPool is Ownable, ReentrancyGuard {
             price_numerator = _nativeForDex;
             price_denominator = _amountTokenDesired;
         }
-
-        console.log("price_numerator: %s", price_numerator);
-        console.log("price_denominator: %s", price_denominator);
 
         if (token.storedLPAddress == address(0)) {
             INonfungiblePositionManager(positionManager).createAndInitializePoolIfNecessary(
@@ -407,8 +383,6 @@ contract FunPool is Ownable, ReentrancyGuard {
         require(price_denominator > 0, "Invalid price denominator");
 
         uint256 sqrtPrice = sqrt(price_numerator.divWadDown(price_denominator));
-
-        console.log("sqrtPrice: %s", sqrtPrice);
         
         // Q64.96 fixed-point number divided by 1e9 for underflow prevention
         return uint160((sqrtPrice * 2**96) / 1e9);
@@ -442,21 +416,16 @@ contract FunPool is Ownable, ReentrancyGuard {
         implementation = _implementation;
     }
 
-    function setFeeContract(address _newFeeContract) public onlyOwner {
-        require(_newFeeContract != address(0), "Invalid fee contract");
-        feeContract = _newFeeContract;
+    function setFeeWallet(address _newfeeWallet) public onlyOwner {
+        require(_newfeeWallet != address(0), "Invalid fee address");
+        feeWallet = _newfeeWallet;
     }
 
     function setLPManager(address _newLPManager) public onlyOwner {
         require(_newLPManager != address(0), "Invalid LP lock deployer");
         LPManager = _newLPManager;
     }
-
-    function setEventTracker(address _newEventTracker) public onlyOwner {
-        require(_newEventTracker != address(0), "Invalid event tracker");
-        eventTracker = _newEventTracker;
-    }
-
+    
     function setStableAddress(address _newStableAddress) public onlyOwner {
         require(_newStableAddress != address(0), "Invalid stable address");
         stable = _newStableAddress;
