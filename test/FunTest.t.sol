@@ -3,9 +3,7 @@ pragma solidity ^0.8.13;
 
 import {Test, console} from "forge-std/Test.sol";
 import {FunDeployer} from "../src/FunDeployer.sol";
-import {FunEventTracker} from "../src/FunEventTracker.sol";
 import {FunPool} from "../src/FunPool.sol";
-import {FunStorage} from "../src/Storage.sol";
 import {SimpleERC20} from "../src/SimpleERC20.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {FunLPManager} from "../src/FunLPManager.sol";
@@ -13,9 +11,7 @@ import {FunLPManager} from "../src/FunLPManager.sol";
 
 contract FunTest is Test {
     FunDeployer deployer;
-    FunEventTracker eventTracker;
     FunPool pool;
-    FunStorage funStorage;
     SimpleERC20 implementation;
     FunLPManager lpManager;
 
@@ -40,31 +36,24 @@ contract FunTest is Test {
         vm.startPrank(owner);
 
         implementation = new SimpleERC20();
-        funStorage = new FunStorage();
-        eventTracker = new FunEventTracker(address(funStorage));
         
-
         pool = new FunPool(
             address(implementation), 
-            address(treasury), 
-            address(eventTracker)
+            address(treasury)
         );
 
-        deployer = new FunDeployer(address(pool), address(treasury), address(funStorage), address(eventTracker));
+        deployer = new FunDeployer(address(pool), address(treasury));
 
-        lpManager = new FunLPManager(address(pool), 1000);
+        lpManager = new FunLPManager(address(pool), address(treasury), 5000);
 
         pool.addDeployer(address(deployer));
         pool.setLPManager(address(lpManager));
-        funStorage.addDeployer(address(deployer));
-        eventTracker.addDeployer(address(deployer));
-        eventTracker.addDeployer(address(pool));
     }
 
     function test_createToken() public {
-        deployer.createFun{value: 10000000}(
+        deployer.createFun{value: 500 ether}(
             "Test", 
-            "TT", 
+            "TEST", 
             "Test Token", 
             1000000000 ether,
             0, 
@@ -72,13 +61,16 @@ contract FunTest is Test {
             0
         );
 
-        FunStorage.FunDetails memory funTokenDetail = funStorage.getFunContract(0);
+        address funAdress = deployer.funContracts(0);
+
+
+        pool.getCurrentCap(funAdress);
                                                                                 
-        uint256 amountOut = pool.getAmountOutTokens(funTokenDetail.funAddress, 300 ether);
+        uint256 amountOut = pool.getAmountOutTokens(funAdress, 890000 ether);
 
-        pool.buyTokens{value : 500 ether}(funTokenDetail.funAddress, amountOut, address(0x0));
+        pool.buyTokens{value : 1000000 ether}(funAdress, amountOut, address(0x0));
 
-        pool.getCurrentCap(funTokenDetail.funAddress);
+        pool.getCurrentCap(funAdress);
 
     }
 }
