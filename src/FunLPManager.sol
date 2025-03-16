@@ -6,7 +6,6 @@ import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {INonfungiblePositionManager} from "@v3-periphery/contracts/interfaces/INonfungiblePositionManager.sol";
-import {IFunStorageInterface} from "./interfaces/IFunStorageInterface.sol";
 
 contract FunLPManager is Ownable, IERC721Receiver {
 
@@ -20,19 +19,20 @@ contract FunLPManager is Ownable, IERC721Receiver {
     uint256 public feePer;
 
     address public positionManager = 0x1C5A295E9860d127D8A3E7af138Bb945c4377ae7;
+    address public feeWallet;
 
     address public funPool;
 
     mapping(uint256 => LPPosition) public tokenIdToLPPosition;
     mapping(address => uint256[])  public devToTokenIds;
 
-    event PositionDeposited(
+    event positionDeposited(
         uint256 tokenId, 
         address dev, 
         uint256 timestamp
     );
 
-    event FeesCollected(
+    event feesCollected(
         uint256 tokenId, 
         address dev,
         address token,
@@ -42,9 +42,11 @@ contract FunLPManager is Ownable, IERC721Receiver {
 
     constructor(
         address _funPool,
+        address _feeWallet,
         uint256 _feePer
     ) Ownable(msg.sender) {
         funPool = _funPool;
+        feeWallet = _feeWallet;
         feePer = _feePer;
     }
 
@@ -62,7 +64,7 @@ contract FunLPManager is Ownable, IERC721Receiver {
         tokenIdToLPPosition[_tokenId] = lpPosition;
         devToTokenIds[_dev].push(_tokenId);
 
-        emit PositionDeposited(_tokenId, _dev, block.timestamp);
+        emit positionDeposited(_tokenId, _dev, block.timestamp);
     }
 
     function collectFees(uint256 _tokenId) external {
@@ -83,18 +85,18 @@ contract FunLPManager is Ownable, IERC721Receiver {
 
         if (amount0 > 0) {
             uint256 feeAmount0 = (amount0 * feePer) / BASIS_POINTS;
-            IERC20(token0).transfer(owner(), feeAmount0);
+            IERC20(token0).transfer(feeWallet, feeAmount0);
             IERC20(token0).transfer(lpPosition.dev, amount0 - feeAmount0);
 
-            emit FeesCollected(_tokenId, lpPosition.dev, token0, amount0, block.timestamp);
+            emit feesCollected(_tokenId, lpPosition.dev, token0, amount0, block.timestamp);
         }
 
         if (amount1 > 0) {
             uint256 feeAmount1 = (amount1 * feePer) / BASIS_POINTS;
-            IERC20(token1).transfer(owner(), feeAmount1);
+            IERC20(token1).transfer(feeWallet, feeAmount1);
             IERC20(token1).transfer(lpPosition.dev, amount1 - feeAmount1);
 
-            emit FeesCollected(_tokenId, lpPosition.dev, token1, amount1, block.timestamp);
+            emit feesCollected(_tokenId, lpPosition.dev, token1, amount1, block.timestamp);
         }
     }
 
@@ -112,7 +114,13 @@ contract FunLPManager is Ownable, IERC721Receiver {
         feePer = _feePer;
     }
 
+    function setfeeWallet(address _newfeeWallet) public onlyOwner {
+        require(_newfeeWallet != address(0), "Invalid fee address");
+        feeWallet = _newfeeWallet;
+    }
+
     function emergencyWithdrawERC721(address _token, uint256 _tokenId) external onlyOwner {
+        require(IERC721(_token).ownerOf(_tokenId) == address(this), "LPManager: LP Token not owned by LPManager");
         IERC721(_token).transferFrom(address(this), owner(), _tokenId);
     }
 }
