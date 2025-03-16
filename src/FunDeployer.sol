@@ -5,8 +5,6 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 import {IFunPool} from "./interfaces/IFunPool.sol";
-import {IFunStorageInterface} from "./interfaces/IFunStorageInterface.sol";
-import {IFunEventTracker} from "./interfaces/IFunEventTracker.sol";
 
 contract FunDeployer is Ownable {
 
@@ -31,38 +29,37 @@ contract FunDeployer is Ownable {
     );
 
     address public feeWallet;
-    address public funStorage;
-    address public eventTracker;
     address public funPool;
 
     /// deployment fee in wei
-    uint256 public deploymentFee = 10000000; 
+    uint256 public deploymentFee = 10000000000000000000; 
     // base of 10000 -> 500 equals 5%
     uint256 public antiSnipePer = 500; 
     // base of 10000 -> 1000 equals 10%
     uint256 public affiliatePer = 1000; 
-    // base of 10000 -> 1000 means 10%
+    // base of 10000 -> 1000 equals 10%
     uint256 public devFeePer = 1000; 
-    // base of 10000 -> 100 equals 1%
-    uint256 public tradingFeePer = 100; 
+    // base of 10000 -> 150 equals 1.5%
+    uint256 public tradingFeePer = 150; 
     // listing marketcap in $USD
-    uint256 public listThreshold = 10; 
+    uint256 public listThreshold = 30000; 
     /// virtual liquidity
-    uint256 public initialReserveTARA = 100 ether; 
+    uint256 public initialReserveTARA = 100_000 ether;
+    /// total fun contracts created
+    uint256 public funCount = 0;
+
+    address[] public funContracts;
 
     mapping(address => uint256) public affiliateSpecialPer;
-    mapping(address => bool) public affiliateSpecial;
+    mapping(address => uint256) public funContractToIndex;
+    mapping(address => bool)    public affiliateSpecial;
 
     constructor(
         address _funPool, 
-        address _feeWallet, 
-        address _funStorage, 
-        address _eventTracker
+        address _feeWallet
     ) Ownable(msg.sender) {
         funPool = _funPool;
         feeWallet = _feeWallet;
-        funStorage = _funStorage;
-        eventTracker = _eventTracker;
     }
 
     function createFun(
@@ -88,21 +85,9 @@ contract FunDeployer is Ownable {
             [_name, _symbol], _totalSupply, msg.sender, [listThreshold, initialReserveTARA], _maxBuyPerWallet
         );
 
-        IFunStorageInterface(funStorage).addFunContract(
-            msg.sender, (funToken), funToken, _name, _symbol, _data, _totalSupply, _liquidityETHAmount
-        );
-
-        IFunEventTracker(eventTracker).createFunEvent(
-            msg.sender,
-            (funToken),
-            (funToken),
-            _name,
-            _symbol,
-            _data,
-            _totalSupply,
-            initialReserveTARA + _liquidityETHAmount,
-            block.timestamp
-        );
+        funContracts.push(funToken);
+        funContractToIndex[funToken] = funCount;
+        funCount++;
 
         if (_amountAntiSnipe > 0) {
             IFunPool(funPool).buyTokens{value: _amountAntiSnipe}(funToken, 0, msg.sender);
@@ -168,18 +153,8 @@ contract FunDeployer is Ownable {
     }
 
     function setFeeWallet(address _newFeeWallet) public onlyOwner {
-        require(_newFeeWallet != address(0), "invalid wallet");
+        require(_newFeeWallet != address(0), "invalid fee address");
         feeWallet = _newFeeWallet;
-    }
-
-    function setStorageContract(address _newStorageContract) public onlyOwner {
-        require(_newStorageContract != address(0), "invalid storage");
-        funStorage = _newStorageContract;
-    }
-
-    function setEventContract(address _newEventContract) public onlyOwner {
-        require(_newEventContract != address(0), "invalid event");
-        eventTracker = _newEventContract;
     }
 
     function setListThreshold(uint256 _newListThreshold) public onlyOwner {
