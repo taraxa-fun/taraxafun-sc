@@ -4,23 +4,21 @@ pragma solidity ^0.8.24;
 import {Script, console} from "forge-std/Script.sol";
 
 import {FunDeployer} from "../src/FunDeployer.sol";
-import {FunEventTracker} from "../src/FunEventTracker.sol";
 import {FunPool} from "../src/FunPool.sol";
-import {FunStorage} from "../src/Storage.sol";
 import {Multicall3} from "../src/Multicall3.sol";
 import {SimpleERC20} from "../src/SimpleERC20.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {FunLPManager} from "../src/FunLPManager.sol";
 
-/// forge script script/FunDeploy.s.sol --rpc-url https://base-sepolia-rpc.publicnode.com --broadcast --legacy
+/// forge script script/FunDeploy.s.sol --rpc-url https://rpc.mainnet.taraxa.io --broadcast --legacy
 
 contract DeployTARAXAFUN is Script {
     
     FunDeployer deployer;
-    FunEventTracker eventTracker;
     FunPool pool;
-    FunStorage funStorage;
     Multicall3 multicall;
     SimpleERC20 implementation;
+    FunLPManager lpManager;
 
     address owner;
     address treasury;
@@ -34,31 +32,27 @@ contract DeployTARAXAFUN is Script {
         vm.startBroadcast(deployerPrivateKey);
 
         implementation = new SimpleERC20();
-        funStorage = new FunStorage();
-        eventTracker = new FunEventTracker(address(funStorage));
 
         pool = new FunPool(
             address(implementation), 
-            address(treasury),
-            address(eventTracker) 
+            address(treasury)
         );
 
-        deployer = new FunDeployer(address(pool), address(treasury), address(funStorage), address(eventTracker));
+        deployer = new FunDeployer(address(pool), address(treasury));
 
-        /// multicall = new Multicall3();
+        lpManager = new FunLPManager(address(pool), address(treasury), 5000);
+
+        multicall = new Multicall3();
 
         pool.addDeployer(address(deployer));
-        funStorage.addDeployer(address(deployer));
-        eventTracker.addDeployer(address(deployer));
-        eventTracker.addDeployer(address(pool));
+        pool.setLPManager(address(lpManager));
 
         vm.stopBroadcast();
 
         console.log("Deployed FunDeployer at address: ", address(deployer));
         console.log("Deployed FunPool at address: ", address(pool));
-        console.log("Deployed FunStorage at address: ", address(funStorage));
-        console.log("Deployed FunEventTracker at address: ", address(eventTracker));
-        // console.log("Deployed Multicall3 at address: ", address(multicall));
+        console.log("Deployed FunLPManager at address: ", address(lpManager));
+        console.log("Deployed Multicall3 at address: ", address(multicall));
     }
 }
 
