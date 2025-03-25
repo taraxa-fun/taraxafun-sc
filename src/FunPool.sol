@@ -376,7 +376,7 @@ contract FunPool is Ownable, ReentrancyGuard {
 
         IERC721(positionManager).approve(LPManager, tokenId);
 
-        IFunLPManager(LPManager).depositNFTPosition(tokenId, msg.sender);
+        IFunLPManager(LPManager).depositNFTPosition(tokenId, token.deployer);
     }
 
     function encodePriceSqrtX96(uint256 price_numerator, uint256 price_denominator) internal pure returns (uint160) {
