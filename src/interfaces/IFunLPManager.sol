@@ -6,4 +6,6 @@ interface IFunLPManager {
         uint256 _tokenId, 
         address _dev
     ) external;
+
+    function collectFees(uint256 _tokenId) external;
 }
