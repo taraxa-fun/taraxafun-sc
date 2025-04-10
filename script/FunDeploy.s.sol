@@ -10,14 +10,12 @@ import {SimpleERC20} from "../src/SimpleERC20.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {FunLPManager} from "../src/FunLPManager.sol";
 
-/// forge script script/FunDeploy.s.sol --rpc-url https://rpc.mainnet.taraxa.io --broadcast --legacy
-
 contract DeployTARAXAFUN is Script {
     
-    // FunDeployer deployer;
-    // FunPool pool;
-    // Multicall3 multicall;
-    // SimpleERC20 implementation;
+    FunDeployer deployer;
+    FunPool pool;
+    Multicall3 multicall;
+    SimpleERC20 implementation;
     FunLPManager lpManager;
 
     address owner;
@@ -31,31 +29,27 @@ contract DeployTARAXAFUN is Script {
 
         vm.startBroadcast(deployerPrivateKey);
 
-        // implementation = new SimpleERC20();
+        implementation = new SimpleERC20();
 
-        /*
         pool = new FunPool(
             address(implementation), 
             address(treasury)
         );
 
         deployer = new FunDeployer(address(pool), address(treasury));
-
-        */
-
         lpManager = new FunLPManager(address(0x10e8fCE09e9c1F990F9452853d8dBc0cA9c39B0a), address(treasury), 5000);
 
-        // multicall = new Multicall3();
+        multicall = new Multicall3();
 
-        // pool.addDeployer(address(deployer));
-        // pool.setLPManager(address(lpManager));
+        pool.addDeployer(address(deployer));
+        pool.setLPManager(address(lpManager));
 
         vm.stopBroadcast();
 
-        // console.log("Deployed FunDeployer at address: ", address(deployer));
-        // console.log("Deployed FunPool at address: ", address(pool));
+        console.log("Deployed FunDeployer at address: ", address(deployer));
+        console.log("Deployed FunPool at address: ", address(pool));
         console.log("Deployed FunLPManager at address: ", address(lpManager));
-        // console.log("Deployed Multicall3 at address: ", address(multicall));
+        console.log("Deployed Multicall3 at address: ", address(multicall));
     }
 }
 
