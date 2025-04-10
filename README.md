@@ -18,7 +18,7 @@ Taraxa.fun smart contracts enable users to deploy their own tokens in one click 
 Deployer      | 0x0E94575E54bb2c1755eB3Cf684Adda8eacFDAD87
 Pool          | 0x10e8fCE09e9c1F990F9452853d8dBc0cA9c39B0a
 SimpleERC20   | 0xe1ac50e0cece63c24ab24311be5a6b8eb67bfc2f
-FunLPManager  | 0xD613EE5b1FB38e275A13da9a0e8D173Bfac328a0
+FunLPManager  | 0x32F3fc2c554d4D5c8019920Ba3ED05304FDDb07C
 ```
 
 ## Development
