@@ -6,6 +6,7 @@ import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {INonfungiblePositionManager} from "@v3-periphery/contracts/interfaces/INonfungiblePositionManager.sol";
+import {IFunPool} from "./interfaces/IFunPool.sol";
 
 contract FunLPManager is Ownable, IERC721Receiver {
 
@@ -19,6 +20,7 @@ contract FunLPManager is Ownable, IERC721Receiver {
     uint256 public feePer;
 
     address public positionManager = 0x1C5A295E9860d127D8A3E7af138Bb945c4377ae7;
+    address public wtara           = 0x5d0Fa4C5668E5809c83c95A7CeF3a9dd7C68d4fE;
     address public feeWallet;
 
     address public funPool;
@@ -50,21 +52,34 @@ contract FunLPManager is Ownable, IERC721Receiver {
         feePer = _feePer;
     }
 
-    function depositNFTPosition(uint256 _tokenId, address _dev) external {
+    function depositNFTPosition(uint256 _tokenId, address) external {
         require(msg.sender == funPool, "LPManager: Only FunPool can call this function");
 
         IERC721(positionManager).transferFrom(funPool, address(this), _tokenId);
 
+        address token;
+        address dev;
+
+        (,,address token0, address token1,,,,,,,,) = INonfungiblePositionManager(positionManager).positions(_tokenId);
+
+        if (token0 == wtara) {
+            token = token1;
+        } else {
+            token = token0;
+        }
+
+        dev = IFunPool(funPool).tokenPools(token).deployer;
+
         LPPosition memory lpPosition = LPPosition({
-            dev: _dev,
+            dev: dev,
             token0Collected: 0,
             token1Collected: 0
         });
 
         tokenIdToLPPosition[_tokenId] = lpPosition;
-        devToTokenIds[_dev].push(_tokenId);
+        devToTokenIds[dev].push(_tokenId);
 
-        emit positionDeposited(_tokenId, _dev, block.timestamp);
+        emit positionDeposited(_tokenId, dev, block.timestamp);
     }
 
     function collectFees(uint256 _tokenId) external {
@@ -107,6 +122,22 @@ contract FunLPManager is Ownable, IERC721Receiver {
         bytes calldata data
     ) external override returns (bytes4) {
         return this.onERC721Received.selector;
+    }
+
+    function migrateNFTPosition(uint256 _tokenId, address _dev) external onlyOwner {
+
+        IERC721(positionManager).transferFrom(owner(), address(this), _tokenId);
+
+        LPPosition memory lpPosition = LPPosition({
+            dev: _dev,
+            token0Collected: 0,
+            token1Collected: 0
+        });
+
+        tokenIdToLPPosition[_tokenId] = lpPosition;
+        devToTokenIds[_dev].push(_tokenId);
+
+        emit positionDeposited(_tokenId, _dev, block.timestamp);
     }
 
     function setFeePer(uint256 _feePer) external onlyOwner {
