@@ -8,4 +8,6 @@ interface IFunLPManager {
     ) external;
 
     function collectFees(uint256 _tokenId) external;
+
+    function tokenIdToLPPosition(uint256 _tokenId) external view returns (address, uint256, uint256);
 }
